@@ -71,6 +71,14 @@ app.use('/api/outward', outwardRoutes);
 app.use('/api/invoices', invoicesRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/settings', settingsRoutes);
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Chemical Waste Management Backend API',
+    health: '/health',
+    api: '/api',
+  });
+});
 
 // Error handling middleware (must be last)
 app.use(notFoundHandler);

@@ -1,0 +1,4 @@
+{
+  "statusCode": 201,
+  "body": "{\"success\":true,\"data\":{\"entry\":{\"id\":\"4fd65409-792f-43e4-b8c6-9c24578d5544\",\"srNo\":2,\"month\":null,\"date\":\"2025-12-31T00:00:00.000Z\",\"cementCompany\":\"Test Company\",\"location\":null,\"manifestNo\":\"TEST-123\",\"transporterId\":null,\"vehicleNo\":\"TS08UB1234\",\"wasteName\":\"Test Waste\",\"quantity\":\"10\",\"unit\":\"MT\",\"packing\":null,\"invoiceId\":null,\"rate\":null,\"amount\":null,\"gst\":null,\"grossAmount\":null,\"vehicleCapacity\":null,\"detCharges\":null,\"paidOn\":null,\"dueOn\":null,\"createdAt\":\"2025-12-31T08:20:27.119Z\",\"updatedAt\":\"2025-12-31T08:20:27.119Z\",\"transporter\":null}},\"message\":\"Outward entry created successfully\"}"
+}

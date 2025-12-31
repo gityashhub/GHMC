@@ -1,0 +1,276 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  fullName     String?  @map("full_name")
+  phone        String?
+  role         String   @default("admin") // Only admin user
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  city      String?
+  contact   String?
+  email     String?
+  gstNumber String?  @unique @map("gst_number")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  materials     CompanyMaterial[]
+  inwardEntries InwardEntry[]
+  invoices      Invoice[]
+
+  @@map("companies")
+}
+
+model CompanyMaterial {
+  id          String   @id @default(uuid())
+  companyId   String   @map("company_id")
+  materialName String  @map("material_name")
+  rate        Decimal  @db.Decimal(10, 2)
+  unit        String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_materials")
+}
+
+model Transporter {
+  id           String   @id @default(uuid())
+  transporterId String  @unique @map("transporter_id")
+  name         String
+  contact      String?
+  address      String?
+  email        String?
+  gstNumber    String?  @map("gst_number")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  outwardEntries OutwardEntry[]
+  invoices       Invoice[]
+
+  @@map("transporters")
+}
+
+model InwardEntry {
+  id              String    @id @default(uuid())
+  srNo            Int?      @map("sr_no")
+  date            DateTime  @db.Date
+  lotNo           String?   @unique @map("lot_no")
+  companyId       String    @map("company_id")
+  manifestNo      String    @map("manifest_no")
+  vehicleNo       String?   @map("vehicle_no")
+  wasteName       String    @map("waste_name")
+  rate            Decimal?  @db.Decimal(10, 2)
+  category        String?
+  quantity        Decimal   @db.Decimal(10, 2)
+  unit            String
+  month           String?
+  invoiceId       String?   @map("invoice_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice         Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  inwardMaterials InwardMaterial[]
+
+  @@index([companyId])
+  @@index([date])
+  @@index([manifestNo])
+  @@index([invoiceId])
+  @@map("inward_entries")
+}
+
+model InwardMaterial {
+  id              String    @id @default(uuid())
+  inwardEntryId   String?   @map("inward_entry_id")
+  srNo            Int?      @map("sr_no")
+  date            DateTime? @db.Date
+  lotNo           String?   @map("lot_no")
+  companyId       String?   @map("company_id")
+  manifestNo     String?    @map("manifest_no")
+  vehicleNo      String?    @map("vehicle_no")
+  wasteName      String?    @map("waste_name")
+  category       String?
+  month          String?
+  quantity       Decimal?   @db.Decimal(10, 2)
+  unit           String?
+  transporterName String?   @map("transporter_name")
+  invoiceNo      String?    @map("invoice_no")
+  vehicleCapacity String?   @map("vehicle_capacity")
+  rate           Decimal?   @db.Decimal(10, 2)
+  amount         Decimal?   @db.Decimal(10, 2)
+  detCharges     Decimal?   @db.Decimal(10, 2) @map("det_charges")
+  gst            Decimal?   @db.Decimal(10, 2)
+  grossAmount    Decimal?   @db.Decimal(10, 2) @map("gross_amount")
+  paidOn         DateTime?  @db.Date @map("paid_on")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  inwardEntry InwardEntry? @relation(fields: [inwardEntryId], references: [id], onDelete: Cascade)
+
+  @@map("inward_materials")
+}
+
+model OutwardEntry {
+  id             String    @id @default(uuid())
+  srNo           Int?      @map("sr_no")
+  month          String?
+  date           DateTime  @db.Date
+  cementCompany  String    @map("cement_company")
+  location       String?
+  manifestNo     String    @map("manifest_no")
+  transporterId  String?   @map("transporter_id")
+  vehicleNo      String?   @map("vehicle_no")
+  wasteName      String?
+  quantity       Decimal   @db.Decimal(10, 2)
+  unit           String
+  packing        String?
+  invoiceId      String?   @map("invoice_id")
+  rate           Decimal?   @db.Decimal(10, 2)
+  amount         Decimal?   @db.Decimal(10, 2)
+  gst            Decimal?   @db.Decimal(10, 2)
+  grossAmount    Decimal?   @db.Decimal(10, 2) @map("gross_amount")
+  vehicleCapacity String?   @map("vehicle_capacity")
+  detCharges     Decimal?   @db.Decimal(10, 2) @map("det_charges")
+  paidOn        DateTime?  @db.Date @map("paid_on")
+  dueOn         DateTime?  @db.Date @map("due_on")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  transporter Transporter? @relation(fields: [transporterId], references: [id], onDelete: SetNull)
+  invoice     Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  outwardMaterials OutwardMaterial[]
+
+  @@index([transporterId])
+  @@index([date])
+  @@index([manifestNo])
+  @@index([invoiceId])
+  @@map("outward_entries")
+}
+
+model OutwardMaterial {
+  id              String    @id @default(uuid())
+  outwardEntryId  String?   @map("outward_entry_id")
+  srNo            Int?      @map("sr_no")
+  date            DateTime? @db.Date
+  cementCompany   String?   @map("cement_company")
+  manifestNo      String?   @map("manifest_no")
+  vehicleNo       String?   @map("vehicle_no")
+  wasteName       String?   @map("waste_name")
+  month           String?
+  quantity        Decimal?  @db.Decimal(10, 2)
+  unit            String?
+  transporterName String?   @map("transporter_name")
+  invoiceNo       String?   @map("invoice_no")
+  vehicleCapacity String?   @map("vehicle_capacity")
+  rate            Decimal?   @db.Decimal(10, 2)
+  amount          Decimal?   @db.Decimal(10, 2)
+  detCharges      Decimal?   @db.Decimal(10, 2) @map("det_charges")
+  gst             Decimal?   @db.Decimal(10, 2)
+  grossAmount     Decimal?   @db.Decimal(10, 2) @map("gross_amount")
+  paidOn          DateTime?  @db.Date @map("paid_on")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  outwardEntry OutwardEntry? @relation(fields: [outwardEntryId], references: [id], onDelete: Cascade)
+
+  @@map("outward_materials")
+}
+
+model Invoice {
+  id               String    @id @default(uuid())
+  invoiceNo        String    @unique @map("invoice_no")
+  type             String
+  date             DateTime  @db.Date
+  customerName     String?   @map("customer_name")
+  companyId        String?   @map("company_id")
+  transporterId   String?   @map("transporter_id")
+  subtotal         Decimal   @db.Decimal(10, 2)
+  cgst             Decimal?  @db.Decimal(10, 2)
+  sgst             Decimal?  @db.Decimal(10, 2)
+  grandTotal       Decimal   @map("grand_total") @db.Decimal(10, 2)
+  paymentReceived  Decimal   @default(0) @map("payment_received") @db.Decimal(10, 2)
+  paymentReceivedOn DateTime? @db.Date @map("payment_received_on")
+  status           String
+  gstNo            String?   @map("gst_no")
+  billedTo         String?   @map("billed_to")
+  shippedTo       String?   @map("shipped_to")
+  description      String?   @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  company          Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  transporter      Transporter?   @relation(fields: [transporterId], references: [id], onDelete: SetNull)
+  inwardEntries    InwardEntry[]
+  outwardEntries   OutwardEntry[]
+  invoiceManifests InvoiceManifest[]
+  invoiceMaterials InvoiceMaterial[]
+
+  @@index([type])
+  @@index([status])
+  @@index([date])
+  @@index([companyId])
+  @@index([transporterId])
+  @@map("invoices")
+}
+
+model InvoiceManifest {
+  id         String   @id @default(uuid())
+  invoiceId  String   @map("invoice_id")
+  manifestNo String   @map("manifest_no")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_manifests")
+}
+
+model InvoiceMaterial {
+  id         String   @id @default(uuid())
+  invoiceId  String   @map("invoice_id")
+  materialName String @map("material_name")
+  rate       Decimal? @db.Decimal(10, 2)
+  unit       String?
+  quantity   Decimal? @db.Decimal(10, 2)
+  amount     Decimal? @db.Decimal(10, 2)
+  manifestNo String?  @map("manifest_no")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_materials")
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String?  @db.Text
+  type      String   @default("string")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+

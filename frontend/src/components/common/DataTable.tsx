@@ -16,7 +16,10 @@ interface DataTableProps<T> {
   totalPages?: number;
   onPageChange?: (page: number) => void;
   emptyMessage?: string;
+  isLoading?: boolean;
 }
+
+import { Loader2 } from "lucide-react";
 
 export function DataTable<T>({
   columns,
@@ -26,9 +29,17 @@ export function DataTable<T>({
   totalPages = 1,
   onPageChange,
   emptyMessage = "No data available",
+  isLoading = false,
 }: DataTableProps<T>) {
   return (
-    <div className="glass-card overflow-hidden">
+    <div className="glass-card overflow-hidden relative">
+      {isLoading && (
+        <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 flex items-center justify-center animate-in fade-in duration-200">
+          <div className="bg-background/80 p-3 rounded-full shadow-lg border border-border">
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="data-table">
           <thead>
@@ -89,8 +100,8 @@ export function DataTable<T>({
                       key={pageNum}
                       onClick={() => onPageChange(pageNum)}
                       className={`px-3 py-1 rounded text-sm transition-colors ${currentPage === pageNum
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-secondary/50 text-muted-foreground hover:text-foreground'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary/50 text-muted-foreground hover:text-foreground'
                         }`}
                     >
                       {pageNum}

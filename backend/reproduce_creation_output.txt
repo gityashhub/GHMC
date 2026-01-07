@@ -1,0 +1,51 @@
+--- Starting Creation Reproduction ---
+Found company: A1 Cement (7fb7ae9f-b01a-481a-b1ec-a4bfcd0c5a47)
+Attempting to create entry with payload:
+{
+  "date": "2026-01-06",
+  "companyId": "7fb7ae9f-b01a-481a-b1ec-a4bfcd0c5a47",
+  "manifestNo": "MNF00023",
+  "vehicleNo": "GJ16BK0023",
+  "wasteName": "Chemical Waste (20/MT)",
+  "category": "Solid",
+  "quantity": 50,
+  "unit": "MT",
+  "rate": 20,
+  "month": "February",
+  "lotNo": ""
+}
+Success! Entry created:
+{
+  "id": "3adb185e-146f-4705-91f8-a6632b2806d6",
+  "srNo": 6,
+  "date": "2026-01-06T00:00:00.000Z",
+  "lotNo": "LOT-202601-0006",
+  "companyId": "7fb7ae9f-b01a-481a-b1ec-a4bfcd0c5a47",
+  "manifestNo": "MNF00023",
+  "vehicleNo": "GJ16BK0023",
+  "wasteName": "Chemical Waste (20/MT)",
+  "rate": "20",
+  "category": "Solid",
+  "quantity": "50",
+  "unit": "MT",
+  "month": "February",
+  "invoiceId": null,
+  "createdAt": "2026-01-06T05:46:28.432Z",
+  "updatedAt": "2026-01-06T05:46:28.432Z",
+  "company": {
+    "id": "7fb7ae9f-b01a-481a-b1ec-a4bfcd0c5a47",
+    "name": "A1 Cement",
+    "gstNumber": "27AABCU9603R1ZM"
+  }
+}
+
+Attempting to create entry with SAME LotNo:
+Caught expected error for LotNo conflict:
+Name: Error
+Message: Lot number already exists
+
+Attempting to create entry with SAME ManifestNo (Auto-gen LotNo):
+Success! Duplicate ManifestNo is ALLOWED.
+New Entry ID: 909547a1-9666-4ac0-84e4-85dbf42b50c0
+
+--- End ---

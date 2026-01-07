@@ -20,6 +20,8 @@ class OutwardService {
       search = '',
       transporterId = '',
       cementCompany = '',
+      wasteName = '',
+      month = '',
       startDate = '',
       endDate = '',
       sortBy = 'date',
@@ -31,31 +33,50 @@ class OutwardService {
 
     // Build where clause
     const where = {};
-    
+    const andConditions = [];
+
+    // Search creates OR conditions
     if (search) {
-      where.OR = [
-        { manifestNo: { contains: search, mode: 'insensitive' } },
-        { vehicleNo: { contains: search, mode: 'insensitive' } },
-        { wasteName: { contains: search, mode: 'insensitive' } },
-      ];
+      andConditions.push({
+        OR: [
+          { manifestNo: { contains: search, mode: 'insensitive' } },
+          { vehicleNo: { contains: search, mode: 'insensitive' } },
+          { wasteName: { contains: search, mode: 'insensitive' } },
+        ]
+      });
     }
 
+    // Filters create AND conditions
     if (transporterId) {
-      where.transporterId = transporterId;
+      andConditions.push({ transporterId });
     }
 
     if (cementCompany) {
-      where.cementCompany = { contains: cementCompany, mode: 'insensitive' };
+      andConditions.push({ cementCompany: { contains: cementCompany, mode: 'insensitive' } });
+    }
+
+    if (wasteName) {
+      andConditions.push({ wasteName: { contains: wasteName, mode: 'insensitive' } });
+    }
+
+    if (month) {
+      andConditions.push({ month: { contains: month, mode: 'insensitive' } });
     }
 
     if (startDate || endDate) {
-      where.date = {};
+      const dateFilter = {};
       if (startDate) {
-        where.date.gte = new Date(startDate);
+        dateFilter.gte = new Date(startDate);
       }
       if (endDate) {
-        where.date.lte = new Date(endDate);
+        dateFilter.lte = new Date(endDate);
       }
+      andConditions.push({ date: dateFilter });
+    }
+
+    // Combine all conditions with AND
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     // Get entries and total count
@@ -66,21 +87,8 @@ class OutwardService {
         take,
         orderBy: { [sortBy]: sortOrder },
         include: {
-          transporter: {
-            select: {
-              id: true,
-              transporterId: true,
-              name: true,
-            },
-          },
-          invoice: {
-            select: {
-              id: true,
-              invoiceNo: true,
-              grandTotal: true,
-              paymentReceived: true,
-            },
-          },
+          transporter: true,
+          invoice: true,
         },
       }),
       prisma.outwardEntry.count({ where }),
@@ -248,13 +256,8 @@ class OutwardService {
         invoiceId: resolvedInvoiceId,
       },
       include: {
-        transporter: {
-          select: {
-            id: true,
-            transporterId: true,
-            name: true,
-          },
-        },
+        transporter: true,
+        invoice: true,
       },
     });
 
@@ -284,7 +287,7 @@ class OutwardService {
       const entry = await this.getEntryById(entryId);
       const rate = updateData.rate !== undefined ? parseFloat(updateData.rate) : Number(entry.rate);
       const quantity = updateData.quantity !== undefined ? parseFloat(updateData.quantity) : Number(entry.quantity);
-      
+
       if (rate && quantity) {
         amount = rate * quantity;
       }
@@ -298,7 +301,7 @@ class OutwardService {
       const entry = await this.getEntryById(entryId);
       grossAmount += Number(entry.detCharges) || 0;
     }
-    
+
     if (updateData.gst !== undefined) {
       grossAmount += parseFloat(updateData.gst) || 0;
     } else {
@@ -412,7 +415,7 @@ class OutwardService {
     const grouped = {};
     entries.forEach((entry) => {
       const key = `${entry.month || 'N/A'}-${entry.cementCompany}-${entry.transporterId || 'N/A'}`;
-      
+
       if (!grouped[key]) {
         grouped[key] = {
           month: entry.month || 'N/A',
@@ -453,12 +456,12 @@ class OutwardService {
 
     const totalDispatches = entries.length;
     const totalQuantity = entries.reduce((sum, e) => sum + Number(e.quantity), 0);
-    
+
     // Calculate invoiced and received from linked invoices
     const totalInvoiced = entries
       .filter((e) => e.invoice)
       .reduce((sum, e) => sum + Number(e.invoice.grandTotal), 0);
-    
+
     const totalReceived = entries
       .filter((e) => e.invoice)
       .reduce((sum, e) => sum + Number(e.invoice.paymentReceived), 0);

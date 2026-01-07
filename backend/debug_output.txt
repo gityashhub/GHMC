@@ -1,0 +1,4 @@
+Found Company: Ambuja Cement (f69e451c-fda1-4b45-9562-b2086d3912c2)
+Found 2 entries:
+- Manifest: MNF001, ID: 32acb30c-3151-46dc-b6ce-772dc21bf44a, InvoiceID: null, InvoiceNo: undefined
+- Manifest: MNF00089, ID: 8efa8c08-b5c2-442b-b25b-c823aacc3815, InvoiceID: null, InvoiceNo: undefined

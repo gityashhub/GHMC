@@ -18,6 +18,8 @@ class InwardService {
       limit = 20,
       search = '',
       companyId = '',
+      wasteName = '',
+      month = '',
       startDate = '',
       endDate = '',
       sortBy = 'date',
@@ -29,27 +31,49 @@ class InwardService {
 
     // Build where clause
     const where = {};
+    const andConditions = [];
 
+    // Search creates OR conditions
     if (search) {
-      where.OR = [
-        { manifestNo: { contains: search, mode: 'insensitive' } },
-        { lotNo: { contains: search, mode: 'insensitive' } },
-        { wasteName: { contains: search, mode: 'insensitive' } },
-      ];
+      andConditions.push({
+        OR: [
+          { manifestNo: { contains: search, mode: 'insensitive' } },
+          { lotNo: { contains: search, mode: 'insensitive' } },
+          { wasteName: { contains: search, mode: 'insensitive' } },
+          { month: { contains: search, mode: 'insensitive' } },
+          { vehicleNo: { contains: search, mode: 'insensitive' } },
+          { category: { contains: search, mode: 'insensitive' } },
+        ]
+      });
     }
 
+    // Filters create AND conditions
     if (companyId) {
-      where.companyId = companyId;
+      andConditions.push({ companyId });
+    }
+
+    if (wasteName) {
+      andConditions.push({ wasteName: { contains: wasteName, mode: 'insensitive' } });
+    }
+
+    if (month) {
+      andConditions.push({ month: { contains: month, mode: 'insensitive' } });
     }
 
     if (startDate || endDate) {
-      where.date = {};
+      const dateFilter = {};
       if (startDate) {
-        where.date.gte = new Date(startDate);
+        dateFilter.gte = new Date(startDate);
       }
       if (endDate) {
-        where.date.lte = new Date(endDate);
+        dateFilter.lte = new Date(endDate);
       }
+      andConditions.push({ date: dateFilter });
+    }
+
+    // Combine all conditions with AND
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     // Get entries and total count
@@ -60,29 +84,10 @@ class InwardService {
         take,
         orderBy: { [sortBy]: sortOrder },
         include: {
-          company: {
-            select: {
-              id: true,
-              name: true,
-              gstNumber: true,
-            },
-          },
-          invoice: {
-            select: {
-              id: true,
-              invoiceNo: true,
-              grandTotal: true,
-              paymentReceived: true,
-              paymentReceivedOn: true,
-            },
-          },
+          company: true,
+          invoice: true,
           inwardMaterials: {
-            select: {
-              id: true,
-              transporterName: true,
-              rate: true,
-              amount: true,
-            },
+            orderBy: { createdAt: 'asc' },
           },
         },
       }),
@@ -234,12 +239,10 @@ class InwardService {
         month: month?.trim() || null,
       },
       include: {
-        company: {
-          select: {
-            id: true,
-            name: true,
-            gstNumber: true,
-          },
+        company: true,
+        invoice: true,
+        inwardMaterials: {
+          orderBy: { createdAt: 'asc' },
         },
       },
     });
@@ -329,29 +332,74 @@ class InwardService {
    * Get inward statistics
    * @returns {Promise<object>} Statistics object
    */
+  /**
+   * Get inward statistics
+   * @returns {Promise<object>} Statistics object
+   */
   async getStats() {
-    const entries = await prisma.inwardEntry.findMany({
-      include: {
-        invoice: {
-          select: {
-            grandTotal: true,
-            paymentReceived: true,
-          },
-        },
+    // 1. Get basic aggregations (Count and Quantity)
+    const aggregations = await prisma.inwardEntry.aggregate({
+      _count: {
+        id: true,
+      },
+      _sum: {
+        quantity: true,
       },
     });
 
-    const totalEntries = entries.length;
-    const totalQuantity = entries.reduce((sum, e) => sum + Number(e.quantity), 0);
+    const totalEntries = aggregations._count.id;
+    const totalQuantity = Number(aggregations._sum.quantity) || 0;
 
-    // Calculate invoiced and received from linked invoices
-    const totalInvoiced = entries
-      .filter((e) => e.invoice)
-      .reduce((sum, e) => sum + Number(e.invoice.grandTotal), 0);
+    // 2. Calculate Uninvoiced Value (Estimated: Qty * Rate * 1.18 GST)
+    const uninvoicedEntries = await prisma.inwardEntry.findMany({
+      where: {
+        invoiceId: null,
+      },
+      select: {
+        quantity: true,
+        rate: true,
+      },
+    });
 
-    const totalReceived = entries
-      .filter((e) => e.invoice)
-      .reduce((sum, e) => sum + Number(e.invoice.paymentReceived), 0);
+    const uninvoicedValue = uninvoicedEntries.reduce((sum, entry) => {
+      const amount = Number(entry.quantity) * (Number(entry.rate) || 0);
+      const gstAmount = amount * 0.18; // 18% GST estimate
+      return sum + amount + gstAmount;
+    }, 0);
+
+    // 3. Calculate Invoiced Value and Payment Received from UNIQUE invoices
+    // We strictly use the Invoice's Grand Total, as it is the source of truth for the bill (including extra charges)
+    const distinctInvoices = await prisma.inwardEntry.findMany({
+      where: {
+        invoiceId: { not: null }
+      },
+      select: {
+        invoiceId: true
+      },
+      distinct: ['invoiceId']
+    });
+
+    const invoiceIds = distinctInvoices.map(e => e.invoiceId);
+
+    let invoicedTotal = 0;
+    let totalReceived = 0;
+
+    if (invoiceIds.length > 0) {
+      const invoices = await prisma.invoice.findMany({
+        where: {
+          id: { in: invoiceIds }
+        },
+        select: {
+          grandTotal: true,
+          paymentReceived: true,
+        }
+      });
+
+      invoicedTotal = invoices.reduce((sum, inv) => sum + Number(inv.grandTotal), 0);
+      totalReceived = invoices.reduce((sum, inv) => sum + Number(inv.paymentReceived), 0);
+    }
+
+    const totalInvoiced = uninvoicedValue + invoicedTotal;
 
     return {
       totalEntries,

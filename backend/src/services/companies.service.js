@@ -17,6 +17,7 @@ class CompaniesService {
       page = 1,
       limit = 20,
       search = '',
+      city = '',
       sortBy = 'createdAt',
       sortOrder = 'desc',
     } = options;
@@ -32,6 +33,10 @@ class CompaniesService {
         { gstNumber: { contains: search, mode: 'insensitive' } },
         { city: { contains: search, mode: 'insensitive' } },
       ];
+    }
+
+    if (city) {
+      where.city = { contains: city, mode: 'insensitive' };
     }
 
     // Get companies and total count
@@ -151,7 +156,7 @@ class CompaniesService {
       },
     });
 
-    return company;
+    return this.getCompanyById(company.id);
   }
 
   /**
@@ -191,7 +196,7 @@ class CompaniesService {
       },
     });
 
-    return updated;
+    return this.getCompanyById(companyId);
   }
 
   /**
@@ -366,6 +371,59 @@ class CompaniesService {
       totalInvoiced,
       totalPaid,
       totalPending,
+    };
+  }
+  /**
+   * Get global statistics for all companies
+   * @returns {Promise<object>} Global statistics object
+   */
+  async getGlobalStats() {
+    const companies = await prisma.company.findMany({
+      include: {
+        materials: true,
+        inwardEntries: {
+          select: {
+            quantity: true,
+            rate: true,
+            wasteName: true,
+          },
+        },
+        invoices: {
+          select: {
+            paymentReceived: true,
+          },
+        },
+      },
+    });
+
+    let totalInvoiced = 0;
+    let totalPaid = 0;
+
+    for (const company of companies) {
+      // Calculate total value from inward entries
+      const companyInvoiced = company.inwardEntries.reduce((sum, entry) => {
+        let rate = Number(entry.rate);
+        if (!rate || rate === 0) {
+          // Fallback to material rate
+          const material = company.materials.find((m) => m.materialName === entry.wasteName);
+          rate = material ? Number(material.rate) : 0;
+        }
+        const amount = Number(entry.quantity) * rate;
+        // Add 18% GST (9% CGST + 9% SGST) to make it "real"
+        const gstAmount = amount * 0.18;
+        return sum + amount + gstAmount;
+      }, 0);
+
+      const companyPaid = company.invoices.reduce((sum, inv) => sum + Number(inv.paymentReceived), 0);
+
+      totalInvoiced += companyInvoiced;
+      totalPaid += companyPaid;
+    }
+
+    return {
+      totalInvoiced,
+      totalPaid,
+      totalPending: Math.max(0, totalInvoiced - totalPaid),
     };
   }
 }

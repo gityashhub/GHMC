@@ -1,5 +1,7 @@
 import inwardService from '../services/inward.service.js';
 import { logger } from '../utils/logger.js';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Inward Entries Controller
@@ -73,6 +75,17 @@ class InwardController {
         message: 'Inward entry created successfully',
       });
     } catch (error) {
+      // DEBUG: Log detailed error to file
+      try {
+        const logPath = path.join(process.cwd(), 'creation_error.log');
+        const timestamp = new Date().toISOString();
+        const logContent = `\n[${timestamp}] Creation Failed:\nError: ${error.message}\nStack: ${error.stack}\nDetails: ${JSON.stringify(error.details || 'No details', null, 2)}\nBody: ${JSON.stringify(req.body, null, 2)}\n----------------------------------------\n`;
+        fs.appendFileSync(logPath, logContent);
+        logger.error(`Creation error details written to ${logPath}`);
+      } catch (logErr) {
+        logger.error('Failed to write debug log:', logErr);
+      }
+
       next(error);
     }
   }

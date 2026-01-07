@@ -5,7 +5,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { DataTable } from "@/components/common/DataTable";
 import { Modal } from "@/components/common/Modal";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { Plus, Search, Filter, Building2, Eye, Edit2, Trash2, Loader2, Download } from "lucide-react";
+import { Plus, Search, Filter, Eye, Trash2, Loader2, Edit, Edit2, MapPin, Building2, Download } from "lucide-react";
 import companiesService, { Company, CreateCompanyData } from "@/services/companies.service";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ export default function Companies() {
     id: null,
   });
   const [editingId, setEditingId] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     name: "",
     gstNumber: "",
@@ -40,15 +41,22 @@ export default function Companies() {
   });
 
   // Fetch companies (use debounced search term with pagination)
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['companies', debouncedSearchTerm, currentPage, pageSize],
     queryFn: () => companiesService.getCompanies({
       search: debouncedSearchTerm || undefined,
       page: currentPage,
       limit: pageSize,
     }),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    placeholderData: keepPreviousData,
+    staleTime: 0, // Always fetch fresh data when filters change
+  });
+
+  // Fetch global stats
+  const { data: statsData } = useQuery({
+    queryKey: ['company-stats'],
+    queryFn: () => companiesService.getGlobalStats(),
+    staleTime: 0,
+    refetchInterval: 10000,
   });
 
   // Create company mutation
@@ -56,6 +64,9 @@ export default function Companies() {
     mutationFn: (data: CreateCompanyData) => companiesService.createCompany(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['company-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-activity'] });
       toast.success('Company created successfully');
       handleCloseModal();
     },
@@ -112,6 +123,9 @@ export default function Companies() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['company-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-activity'] });
       toast.success('Company updated successfully');
       handleCloseModal();
     },
@@ -125,6 +139,9 @@ export default function Companies() {
     mutationFn: (id: string) => companiesService.deleteCompany(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['company-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-activity'] });
       toast.success('Company deleted successfully');
     },
     onError: (error: any) => {
@@ -138,10 +155,10 @@ export default function Companies() {
   // Reset to page 1 when search changes
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
+    setCurrentPage(1);
   };
+
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -283,10 +300,10 @@ export default function Companies() {
     });
   };
 
-  // Calculate summary stats
-  const totalInvoiced = companies.reduce((sum, c) => sum + (c.totalInvoiced || 0), 0);
-  const totalPaid = companies.reduce((sum, c) => sum + (c.totalPaid || 0), 0);
-  const totalPending = companies.reduce((sum, c) => sum + (c.totalPending || 0), 0);
+  // Use global stats if available, otherwise 0
+  const totalInvoiced = statsData?.totalInvoiced || 0;
+  const totalPaid = statsData?.totalPaid || 0;
+  const totalPending = statsData?.totalPending || 0;
 
   const columns = [
     {
@@ -414,55 +431,78 @@ export default function Companies() {
     <MainLayout title="Companies" subtitle="Manage waste generator companies">
       {/* Actions Bar */}
       <div className="flex flex-col lg:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search companies by name or GST..."
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="input-field pl-10 w-full"
-          />
+        {/* Real-time Filters Bar with Labels */}
+        {/* Search Bar */}
+        <div className="flex-1 p-4 rounded-xl bg-secondary/30 border border-primary/10 shadow-sm">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">Search</label>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search by name or GST..."
+                value={searchTerm}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="input-field pl-9 w-full text-xs h-9 bg-background"
+              />
+            </div>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="btn-secondary flex-1 sm:flex-none justify-center">
-            <Filter className="w-4 h-4" /> Filters
-          </button>
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              exportToCSV(
-                companies,
-                [
-                  { key: 'name', header: 'Company Name' },
-                  { key: 'gstNumber', header: 'GST Number' },
-                  { key: 'address', header: 'Address' },
-                  { key: 'city', header: 'City' },
-                  { key: 'contact', header: 'Contact' },
-                  { key: 'email', header: 'Email' },
-                  ...(user?.role === 'admin' ? [
-                    { key: 'totalInvoiced', header: 'Total Invoiced' },
-                    { key: 'totalPaid', header: 'Total Paid' },
-                    { key: 'totalPending', header: 'Total Pending' },
-                  ] : []),
-                ],
-                `companies-${new Date().toISOString().slice(0, 10)}.csv`,
-                {
-                  totalInvoiced: (value) => formatCurrencyForExport(value),
-                  totalPaid: (value) => formatCurrencyForExport(value),
-                  totalPending: (value) => formatCurrencyForExport(value),
-                }
-              );
-              toast.success('Companies exported successfully');
+            onClick={async () => {
+              try {
+                const toastId = toast.loading('Exporting companies...');
+                const { companies: allCompanies } = await companiesService.getCompanies({
+                  limit: 10000,
+                  search: debouncedSearchTerm || undefined,
+                });
+
+                exportToCSV(
+                  allCompanies,
+                  [
+                    { key: 'name', header: 'Company Name' },
+                    { key: 'gstNumber', header: 'GST Number' },
+                    { key: 'address', header: 'Address' },
+                    { key: 'city', header: 'City' },
+                    { key: 'contact', header: 'Contact' },
+                    { key: 'email', header: 'Email' },
+                    { key: 'createdAt', header: 'Created At' },
+                    ...(user?.role === 'admin' ? [
+                      { key: 'totalInvoiced', header: 'Total Invoiced' },
+                      { key: 'totalPaid', header: 'Total Paid' },
+                      { key: 'totalPending', header: 'Total Pending' },
+                    ] : []),
+                  ],
+                  `companies-${new Date().toISOString().slice(0, 10)}.csv`,
+                  {
+                    createdAt: (value: any) => {
+                      if (!value) return '';
+                      try {
+                        return format(new Date(String(value)), 'dd/MM/yyyy');
+                      } catch (e) {
+                        return String(value);
+                      }
+                    },
+                  }
+                );
+                toast.dismiss(toastId);
+                toast.success('Companies exported successfully');
+              } catch (error) {
+                toast.error('Failed to export companies');
+                console.error(error);
+              }
             }}
-            className="btn-secondary flex-1 sm:flex-none justify-center"
+            className="btn-secondary flex-none justify-center px-4 gap-2"
           >
-            <Download className="w-4 h-4" /> Export CSV
+            <Download className="w-4 h-4" /> <span className="hidden md:inline">Export CSV</span>
           </button>
-          <button onClick={() => setIsModalOpen(true)} className="btn-primary w-full sm:w-auto justify-center">
-            <Plus className="w-4 h-4" /> Add Company
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex-none justify-center px-4">
+            <Plus className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Add Company</span>
           </button>
         </div>
       </div>
+
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -503,6 +543,7 @@ export default function Companies() {
         currentPage={pagination.page}
         totalPages={pagination.totalPages}
         onPageChange={(page) => setCurrentPage(page)}
+        isLoading={isFetching}
       />
 
       {/* Add/Edit Company Modal */}
@@ -536,7 +577,7 @@ export default function Companies() {
                 type="text"
                 name="gstNumber"
                 className="input-field w-full"
-                placeholder="27AABCU9603R1ZM"
+                placeholder="Enter 15-digit GST number"
                 value={formData.gstNumber}
                 onChange={handleInputChange}
               />

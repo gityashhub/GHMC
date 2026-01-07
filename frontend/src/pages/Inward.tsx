@@ -5,7 +5,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { DataTable } from "@/components/common/DataTable";
 import { Modal } from "@/components/common/Modal";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { Plus, Search, Filter, FileText, Download, Eye, Trash2, Loader2, Edit } from "lucide-react";
+import { Plus, Search, Filter, FileText, Download, Eye, Trash2, Loader2, Edit, Building2, Calendar, ChevronDown } from "lucide-react";
 import inwardService, { InwardEntry, CreateInwardEntryData, UpdateInwardEntryData, InwardMaterial } from "@/services/inward.service";
 import companiesService from "@/services/companies.service";
 import inwardMaterialsService from "@/services/inwardMaterials.service";
@@ -20,6 +20,12 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { isNotFutureDate, isValidManifestNumber, isPositiveNumber } from "@/utils/validation";
 import { exportToCSV, formatDateForExport, formatCurrencyForExport } from "@/utils/export";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Inward() {
   const { user } = useAuth();
@@ -42,6 +48,8 @@ export default function Inward() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
+
+
   // Fetch companies for form (cache for longer since it doesn't change often)
   const { data: companiesData } = useQuery({
     queryKey: ['companies'],
@@ -50,22 +58,27 @@ export default function Inward() {
   });
 
   // Fetch inward entries (use debounced search term with pagination)
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['inward', debouncedSearchTerm, currentPage, pageSize],
-    queryFn: () => inwardService.getEntries({
-      search: debouncedSearchTerm || undefined,
-      page: currentPage,
-      limit: pageSize,
-    }),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    placeholderData: keepPreviousData,
+    queryFn: () => {
+      const params = {
+        search: debouncedSearchTerm || undefined,
+        page: currentPage,
+        limit: pageSize,
+      };
+      console.log('🔍 Inward API Request Params:', params);
+      return inwardService.getEntries(params);
+    },
+    staleTime: 1000, // 1 second to prevent rapid re-fetching during typing
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
   });
 
   // Fetch statistics (cache for longer)
   const { data: statsData } = useQuery({
     queryKey: ['inward-stats'],
     queryFn: () => inwardService.getStats(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always fetch fresh stats
+    refetchInterval: 10000,
   });
 
   // Fetch inward materials
@@ -81,11 +94,17 @@ export default function Inward() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inward'] });
       queryClient.invalidateQueries({ queryKey: ['inward-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-waste-flow'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-activity'] });
       toast.success('Inward entry created successfully');
       setIsModalOpen(false);
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error?.message || 'Failed to create entry');
+      console.error('Create Entry Error:', error);
+      const message = error.response?.data?.error?.message || error.response?.statusText || 'Failed to create entry';
+      const details = error.response?.data?.error?.details?.[0]?.message; // Show first validation error if available
+      toast.error(details ? `${message}: ${details}` : message);
     },
   });
 
@@ -95,6 +114,9 @@ export default function Inward() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inward'] });
       queryClient.invalidateQueries({ queryKey: ['inward-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-waste-flow'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-activity'] });
       toast.success('Entry updated successfully');
       setIsEditModalOpen(false);
       setEditingEntry(null);
@@ -110,6 +132,9 @@ export default function Inward() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inward'] });
       queryClient.invalidateQueries({ queryKey: ['inward-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-waste-flow'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-activity'] });
       toast.success('Entry deleted successfully');
     },
     onError: (error: any) => {
@@ -126,9 +151,12 @@ export default function Inward() {
   // Reset to page 1 when search changes
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
+    setCurrentPage(1);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setCurrentPage(1);
   };
 
   // Create material mutation
@@ -259,17 +287,55 @@ export default function Inward() {
     { key: "quantity", header: "Quantity", render: (e: InwardEntry) => `${e.quantity} ${e.unit}` },
     ...(user?.role === 'admin' ? [
       { key: "invoiceNo", header: "Invoice No.", render: (e: InwardEntry) => e.invoice?.invoiceNo || "-" },
-      { key: "grossAmount", header: "Gross Amount", render: (e: InwardEntry) => e.invoice?.grandTotal ? `₹${Number(e.invoice.grandTotal).toLocaleString()}` : "-" },
-      { key: "paymentReceived", header: "Payment Received", render: (e: InwardEntry) => e.invoice?.paymentReceived ? `₹${Number(e.invoice.paymentReceived).toLocaleString()}` : "-" },
+      {
+        key: "grossAmount",
+        header: "Gross Amount",
+        render: (e: InwardEntry) => {
+          const quantity = Number(e.quantity) || 0;
+          const rate = Number(e.rate) || 0;
+          const baseAmount = quantity * rate;
+          return `₹${baseAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+      },
+      {
+        key: "paymentReceived",
+        header: "Payment Received",
+        render: (e: InwardEntry) => {
+          if (!e.invoice) return "-";
+
+          const quantity = Number(e.quantity) || 0;
+          const rate = Number(e.rate) || 0;
+          const baseAmount = quantity * rate;
+          const invSubtotal = Number(e.invoice.subtotal) || 0;
+          const invGrandTotal = Number(e.invoice.grandTotal) || 0;
+          const invPaymentReceived = Number(e.invoice.paymentReceived) || 0;
+
+          // Calculate full proportional grand total (Gross + GST + Charges)
+          let entryTotal = baseAmount;
+          if (invSubtotal > 0 && invGrandTotal > 0) {
+            entryTotal = baseAmount * (invGrandTotal / invSubtotal);
+          }
+
+          return `₹${entryTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+        }
+      },
       { key: "paymentReceivedOn", header: "Payment Received On", render: (e: InwardEntry) => e.invoice?.paymentReceivedOn ? format(new Date(e.invoice.paymentReceivedOn), 'dd MMM yyyy') : "-" },
       {
         key: "status",
         header: "Status",
         render: (e: InwardEntry) => {
-          if (!e.invoice) return <span className="text-muted-foreground text-xs">No Invoice</span>;
+          if (!e.invoice) return <span className="px-2 py-1 rounded-full text-xs font-medium bg-secondary text-muted-foreground border border-border">Not Invoiced</span>;
+
+          if (e.invoice.status) {
+            return <StatusBadge status={e.invoice.status} />;
+          }
+
+          // Fallback calculation with tolerance
           const received = Number(e.invoice.paymentReceived);
           const total = Number(e.invoice.grandTotal);
-          if (received >= total) return <StatusBadge status="paid" />;
+          const epsilon = 0.01;
+
+          if (received >= total - epsilon) return <StatusBadge status="paid" />;
           if (received > 0) return <StatusBadge status="partial" />;
           return <StatusBadge status="pending" />;
         },
@@ -341,57 +407,203 @@ export default function Inward() {
 
   return (
     <MainLayout title="Inward Management" subtitle="Manage waste collection entries">
-      <div className="flex flex-col lg:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search manifest, lot, or waste..."
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="input-field pl-10 w-full"
-          />
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search manifest, lot, or waste..."
+              value={searchTerm}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="input-field pl-10 w-full"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {searchTerm && (
+              <button
+                onClick={clearFilters}
+                className="text-xs text-muted-foreground hover:text-primary transition-colors pr-2 border-r border-border"
+              >
+                Clear Search
+              </button>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="btn-secondary flex-none justify-center px-4 gap-2">
+                  <Download className="w-4 h-4" />
+                  <span className="hidden md:inline">Export CSV</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={async () => {
+                  try {
+                    const toastId = toast.loading('Exporting entries...');
+                    const { entries: allEntries } = await inwardService.getEntries({
+                      limit: 10000,
+                      search: debouncedSearchTerm || undefined,
+                    });
+
+                    exportToCSV(
+                      allEntries,
+                      [
+                        { key: 'computedSrNo', header: 'Sr No.' },
+                        { key: 'date', header: 'Date' },
+                        { key: 'month', header: 'Month' },
+                        { key: 'lotNo', header: 'Lot No.' },
+                        { key: 'company', header: 'Company' },
+                        { key: 'manifestNo', header: 'Manifest No.' },
+                        { key: 'vehicleNo', header: 'Vehicle No.' },
+                        { key: 'wasteName', header: 'Waste Name' },
+                        ...(user?.role === 'admin' ? [{ key: 'rate', header: 'Rate' }] : []),
+                        { key: 'category', header: 'Category' },
+                        { key: 'quantity', header: 'Quantity' },
+                        { key: 'invoiceNo', header: 'Invoice No.' },
+                        ...(user?.role === 'admin' ? [
+                          { key: 'calculatedAmount', header: 'Gross Amount' },
+                          { key: 'allocatedPayment', header: 'Payment Received' },
+                          { key: 'paymentReceivedOn', header: 'Payment Received On' },
+                          { key: 'status', header: 'Status' },
+                        ] : []),
+                      ],
+                      `inward-entries-${new Date().toISOString().slice(0, 10)}.csv`,
+                      {
+                        computedSrNo: (_: any, item: any) => String(allEntries.indexOf(item) + 1),
+                        date: (value: any, item: any) => {
+                          const val = item.date || value;
+                          if (!val) return '';
+                          try {
+                            return format(new Date(val), 'dd/MM/yyyy');
+                          } catch (e) {
+                            return String(val);
+                          }
+                        },
+                        company: (value: any) => value?.name || '',
+                        rate: (value: any) => formatCurrencyForExport(value),
+                        invoiceNo: (_: any, item: any) => item.invoice?.invoiceNo || '',
+                        calculatedAmount: (_: any, item: any) => {
+                          const rate = Number(item.rate) || 0;
+                          const qty = Number(item.quantity) || 0;
+                          return formatCurrencyForExport(rate * qty);
+                        },
+                        allocatedPayment: (_: any, item: any) => {
+                          const rate = Number(item.rate) || 0;
+                          const qty = Number(item.quantity) || 0;
+                          const entryAmount = rate * qty;
+                          const grandTotal = Number(item.invoice?.grandTotal) || 0;
+                          const totalReceived = Number(item.invoice?.paymentReceived) || 0;
+
+                          if (!grandTotal || grandTotal === 0) return formatCurrencyForExport(0);
+
+                          // Calculate proportional payment allocated to this entry's base amount
+                          const allocated = (entryAmount / grandTotal) * totalReceived;
+                          return formatCurrencyForExport(allocated);
+                        },
+                        paymentReceivedOn: (_: any, item: any) => {
+                          const val = item.invoice?.paymentReceivedOn;
+                          if (!val) return '';
+                          try {
+                            return format(new Date(val), 'dd/MM/yyyy');
+                          } catch (e) {
+                            return String(val);
+                          }
+                        },
+                        status: (_: any, item: any) => item.invoice?.status || 'pending',
+                      }
+                    );
+                    toast.dismiss(toastId);
+                    toast.success('Inward entries exported successfully');
+                  } catch (error) {
+                    toast.error('Failed to export entries');
+                    console.error(error);
+                  }
+                }}>
+                  Export Entry Records
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={async () => {
+                  try {
+                    const toastId = toast.loading('Exporting material records...');
+                    const { materials: allMaterials } = await inwardMaterialsService.getMaterials({
+                      limit: 10000,
+                    });
+
+                    exportToCSV(
+                      allMaterials,
+                      [
+                        { key: 'date', header: 'Date' },
+                        { key: 'month', header: 'Month' },
+                        { key: 'transporterName', header: 'Transporter' },
+                        { key: 'lotNo', header: 'Lot No.' },
+                        { key: 'manifestNo', header: 'Manifest No.' },
+                        { key: 'vehicleNo', header: 'Vehicle No.' },
+                        { key: 'wasteName', header: 'Waste Name' },
+                        { key: 'category', header: 'Category' },
+                        { key: 'quantity', header: 'Quantity' },
+                        { key: 'unit', header: 'Unit' },
+                        ...(user?.role === 'admin' ? [
+                          { key: 'rate', header: 'Rate' },
+                          { key: 'amount', header: 'Amount' },
+                          { key: 'detCharges', header: 'Det Charges' },
+                          { key: 'gst', header: 'GST' },
+                          { key: 'grossAmount', header: 'Gross Amount' },
+                        ] : []),
+                        { key: 'invoiceNo', header: 'Invoice No.' },
+                        { key: 'paidOn', header: 'Paid On' },
+                      ],
+                      `inward-materials-${new Date().toISOString().slice(0, 10)}.csv`,
+                      {
+                        date: (value: any) => {
+                          if (!value) return '';
+                          try {
+                            return format(new Date(value), 'dd/MM/yyyy');
+                          } catch (e) {
+                            return String(value);
+                          }
+                        },
+                        month: (value: any, item: any) => {
+                          if (value) return value;
+                          if (item.date) {
+                            try {
+                              return format(new Date(item.date), 'MMMM');
+                            } catch (e) {
+                              return '';
+                            }
+                          }
+                          return '';
+                        },
+                        rate: (value: any) => formatCurrencyForExport(value),
+                        amount: (value: any) => formatCurrencyForExport(value),
+                        detCharges: (value: any) => formatCurrencyForExport(value),
+                        gst: (value: any) => formatCurrencyForExport(value),
+                        grossAmount: (value: any) => formatCurrencyForExport(value),
+                        paidOn: (value: any) => {
+                          if (!value) return '';
+                          try {
+                            return format(new Date(value), 'dd/MM/yyyy');
+                          } catch (e) {
+                            return String(value);
+                          }
+                        },
+                      }
+                    );
+                    toast.dismiss(toastId);
+                    toast.success('Material records exported successfully');
+                  } catch (error) {
+                    toast.error('Failed to export materials');
+                    console.error(error);
+                  }
+                }}>
+                  Export Material Records
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button onClick={() => setIsModalOpen(true)} className="btn-primary flex-none justify-center px-4">
+              <Plus className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Create Inward Entry</span>
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="btn-secondary flex-1 sm:flex-none justify-center">
-            <Filter className="w-4 h-4" /> Filters
-          </button>
-          <button
-            onClick={() => {
-              exportToCSV(
-                entries,
-                [
-                  { key: 'srNo', header: 'Sr No.' },
-                  { key: 'date', header: 'Date' },
-                  { key: 'lotNo', header: 'Lot No.' },
-                  { key: 'company', header: 'Company' },
-                  { key: 'manifestNo', header: 'Manifest No.' },
-                  { key: 'vehicleNo', header: 'Vehicle No.' },
-                  { key: 'wasteName', header: 'Waste Name' },
-                  { key: 'quantity', header: 'Quantity' },
-                  { key: 'unit', header: 'Unit' },
-                  { key: 'category', header: 'Category' },
-                  ...(user?.role === 'admin' ? [
-                    { key: 'rate', header: 'Rate' },
-                  ] : []),
-                ],
-                `inward-entries-${new Date().toISOString().slice(0, 10)}.csv`,
-                {
-                  date: (value) => formatDateForExport(value),
-                  company: (value) => value?.name || '',
-                  rate: (value) => formatCurrencyForExport(value),
-                }
-              );
-              toast.success('Inward entries exported successfully');
-            }}
-            className="btn-secondary flex-1 sm:flex-none justify-center"
-          >
-            <Download className="w-4 h-4" /> Export CSV
-          </button>
-          <button onClick={() => setIsModalOpen(true)} className="btn-primary w-full sm:w-auto justify-center">
-            <Plus className="w-4 h-4" />Create Inward Entry
-          </button>
-        </div>
+
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -425,6 +637,7 @@ export default function Inward() {
         currentPage={pagination.page}
         totalPages={pagination.totalPages}
         onPageChange={(page) => setCurrentPage(page)}
+        isLoading={isFetching}
       />
 
       {/* Inward Materials Section */}
@@ -511,6 +724,7 @@ export default function Inward() {
       >
         {selectedEntry && <InwardEntryDetails entry={selectedEntry} />}
       </Modal>
+
 
       {/* Edit Entry Modal */}
       <Modal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setEditingEntry(null); }} title="Edit Inward Entry" size="lg">
@@ -856,9 +1070,11 @@ function InwardEntryDetails({ entry }: { entry: InwardEntry }) {
         customerName: invoiceData.customerName || entry.company?.name || '',
         customerAddress: invoiceData.billedTo || '',
         customerGst: invoiceData.gstNo || entry.company?.gstNumber || '',
+        description: invoiceData.description || '',
         items: (invoiceData.invoiceMaterials && invoiceData.invoiceMaterials.length > 0)
           ? invoiceData.invoiceMaterials.map(m => ({
-            description: m.materialName,
+            description: (m as any).description || '',
+            manifestNo: (m as any).manifestNo || '',
             hsnCode: '999432',
             quantity: m.quantity,
             unit: m.unit,
@@ -867,7 +1083,8 @@ function InwardEntryDetails({ entry }: { entry: InwardEntry }) {
           }))
           : (invoiceData.inwardEntries && invoiceData.inwardEntries.length > 0)
             ? invoiceData.inwardEntries.map(e => ({
-              description: e.wasteName,
+              description: '',
+              manifestNo: e.manifestNo || '',
               hsnCode: '999432',
               quantity: e.quantity,
               unit: e.unit,
@@ -878,6 +1095,8 @@ function InwardEntryDetails({ entry }: { entry: InwardEntry }) {
         subTotal: invoiceData.subtotal,
         cgst: invoiceData.cgst || 0,
         sgst: invoiceData.sgst || 0,
+        additionalCharges: invoiceData.additionalCharges || 0,
+        additionalChargesDescription: invoiceData.additionalChargesDescription || '',
         grandTotal: invoiceData.grandTotal
       };
 

@@ -19,8 +19,7 @@ export default function Invoices() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [paymentEditOpen, setPaymentEditOpen] = useState(false);
@@ -39,11 +38,9 @@ export default function Invoices() {
 
   // Fetch invoices (use debounced search term with pagination)
   const { data, isLoading, error } = useQuery<{ invoices: Invoice[]; pagination: any }>({
-    queryKey: ['invoices', debouncedSearchTerm, typeFilter, statusFilter, currentPage, pageSize],
+    queryKey: ['invoices', debouncedSearchTerm, currentPage, pageSize],
     queryFn: () => invoicesService.getInvoices({
       search: debouncedSearchTerm || undefined,
-      type: typeFilter !== 'all' ? typeFilter as any : undefined,
-      status: statusFilter !== 'all' ? statusFilter as any : undefined,
       page: currentPage,
       limit: pageSize,
     }),
@@ -55,7 +52,8 @@ export default function Invoices() {
   const { data: statsData } = useQuery<InvoiceStats>({
     queryKey: ['invoice-stats'],
     queryFn: () => invoicesService.getStats(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always fetch fresh stats
+    refetchInterval: 10000,
   });
 
   // Update payment mutation
@@ -64,6 +62,10 @@ export default function Invoices() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-revenue'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-payment-status'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-activity'] });
       toast.success('Payment updated successfully');
       setPaymentEditOpen(false);
       setSelectedInvoice(null);
@@ -79,6 +81,10 @@ export default function Invoices() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-revenue'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-payment-status'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-activity'] });
       toast.success('Invoice deleted successfully');
     },
     onError: (error: any) => {
@@ -140,9 +146,11 @@ export default function Invoices() {
         customerName: fullInvoice.customerName || fullInvoice.company?.name || '',
         customerAddress: fullInvoice.billedTo || '',
         customerGst: fullInvoice.gstNo || fullInvoice.company?.gstNumber || '',
+        description: fullInvoice.description || '',
         items: (fullInvoice.invoiceMaterials && fullInvoice.invoiceMaterials.length > 0)
           ? fullInvoice.invoiceMaterials.map(m => ({
-            description: m.materialName,
+            description: (m as any).description || '',
+            manifestNo: (m as any).manifestNo || '',
             hsnCode: '999432',
             quantity: m.quantity,
             unit: m.unit,
@@ -151,7 +159,8 @@ export default function Invoices() {
           }))
           : (fullInvoice.inwardEntries && fullInvoice.inwardEntries.length > 0)
             ? fullInvoice.inwardEntries.map(e => ({
-              description: e.wasteName,
+              description: '',
+              manifestNo: e.manifestNo || '',
               hsnCode: '999432',
               quantity: e.quantity,
               unit: e.unit,
@@ -162,6 +171,8 @@ export default function Invoices() {
         subTotal: fullInvoice.subtotal,
         cgst: fullInvoice.cgst || 0,
         sgst: fullInvoice.sgst || 0,
+        additionalCharges: fullInvoice.additionalCharges || 0,
+        additionalChargesDescription: fullInvoice.additionalChargesDescription || '',
         grandTotal: fullInvoice.grandTotal
       };
 
@@ -336,58 +347,76 @@ export default function Invoices() {
             className="input-field pl-10 w-full"
           />
         </div>
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="input-field"
-        >
-          <option value="all">All Types</option>
-          <option value="Inward">Inward</option>
-          <option value="Outward">Outward</option>
-          <option value="Transporter">Transporter</option>
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="input-field"
-        >
-          <option value="all">All Status</option>
-          <option value="paid">Paid</option>
-          <option value="pending">Pending</option>
-          <option value="partial">Partial</option>
-        </select>
+
         <button
-          onClick={() => {
-            exportToCSV(
-              invoices,
-              [
-                { key: 'invoiceNo', header: 'Invoice No.' },
-                { key: 'type', header: 'Type' },
-                { key: 'date', header: 'Date' },
-                { key: 'customerName', header: 'Customer/Vendor' },
-                { key: 'subtotal', header: 'Subtotal' },
-                { key: 'cgst', header: 'CGST' },
-                { key: 'sgst', header: 'SGST' },
-                { key: 'grandTotal', header: 'Grand Total' },
-                { key: 'paymentReceived', header: 'Payment Received' },
-                { key: 'status', header: 'Status' },
-              ],
-              `invoices-${new Date().toISOString().slice(0, 10)}.csv`,
-              {
-                date: (value) => formatDateForExport(value),
-                subtotal: (value) => formatCurrencyForExport(value),
-                cgst: (value) => formatCurrencyForExport(value),
-                sgst: (value) => formatCurrencyForExport(value),
-                grandTotal: (value) => formatCurrencyForExport(value),
-                paymentReceived: (value) => formatCurrencyForExport(value),
-              }
-            );
-            toast.success('Invoices exported successfully');
+          onClick={async () => {
+            try {
+              const toastId = toast.loading('Exporting invoices...');
+              const { invoices: allInvoices } = await invoicesService.getInvoices({
+                limit: 10000,
+                search: debouncedSearchTerm || undefined,
+              });
+
+              exportToCSV(
+                allInvoices,
+                [
+                  { key: 'invoiceNo', header: 'Invoice No.' },
+                  { key: 'type', header: 'Type' },
+                  { key: 'date', header: 'Date' },
+                  { key: 'customerName', header: 'Customer/Vendor' },
+                  { key: 'manifestNo', header: 'Manifest No.' },
+                  { key: 'subtotal', header: 'Subtotal' },
+                  { key: 'gst', header: 'GST' },
+                  { key: 'grandTotal', header: 'Grand Total' },
+                  { key: 'paymentReceived', header: 'Received' },
+                  { key: 'status', header: 'Status' },
+                ],
+                `invoices-${new Date().toISOString().slice(0, 10)}.csv`,
+                {
+                  date: (value) => {
+                    if (!value) return '';
+                    try {
+                      return format(new Date(value), 'dd/MM/yyyy');
+                    } catch (e) {
+                      return String(value);
+                    }
+                  },
+                  customerName: (value, item: Invoice) => {
+                    return value || item.company?.name || item.transporter?.name || '-';
+                  },
+                  manifestNo: (_, item: Invoice) => {
+                    const manifests = new Set<string>();
+
+                    item.invoiceManifests?.forEach(m => manifests.add(m.manifestNo));
+                    item.inwardEntries?.forEach(e => manifests.add(e.manifestNo));
+                    item.outwardEntries?.forEach(e => manifests.add(e.manifestNo));
+                    item.invoiceMaterials?.forEach(m => {
+                      if (m.manifestNo) manifests.add(m.manifestNo);
+                    });
+
+                    return Array.from(manifests).join(', ') || '-';
+                  },
+                  subtotal: (value) => formatCurrencyForExport(value),
+                  gst: (_, item: Invoice) => {
+                    const sum = (Number(item.cgst) || 0) + (Number(item.sgst) || 0);
+                    return formatCurrencyForExport(sum);
+                  },
+                  grandTotal: (value) => formatCurrencyForExport(value),
+                  paymentReceived: (value) => formatCurrencyForExport(value),
+                  status: (value) => value ? (value.charAt(0).toUpperCase() + value.slice(1)) : '-',
+                }
+              );
+              toast.dismiss(toastId);
+              toast.success('Invoices exported successfully');
+            } catch (error) {
+              toast.error('Failed to export invoices');
+              console.error(error);
+            }
           }}
-          className="btn-secondary"
+          className="btn-secondary flex-none justify-center px-4"
         >
-          <Download className="w-4 h-4" />
-          Export CSV
+          <Download className="w-4 h-4 mr-2" />
+          <span className="hidden md:inline">Export CSV</span>
         </button>
         <div className="flex gap-2">
           <Button onClick={() => {
@@ -627,7 +656,7 @@ function InvoiceDetails({
           <p className="text-sm text-muted-foreground">Subtotal</p>
           <p className="font-medium">₹{Number(invoice.subtotal).toLocaleString()}</p>
         </div>
-        {invoice.cgst && invoice.sgst && (
+        {(Number(invoice.cgst) > 0 || Number(invoice.sgst) > 0) && (
           <>
             <div className="flex justify-between">
               <p className="text-sm text-muted-foreground">CGST</p>

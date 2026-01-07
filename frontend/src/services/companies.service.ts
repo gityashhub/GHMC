@@ -74,6 +74,7 @@ export interface GetCompaniesParams {
   page?: number;
   limit?: number;
   search?: string;
+  city?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
@@ -168,6 +169,14 @@ class CompaniesService {
    */
   async getCompanyStats(companyId: string): Promise<CompanyStats> {
     const response = await apiClient.get<ApiResponse<{ stats: CompanyStats }>>(`/companies/${companyId}/stats`);
+    return response.data.data.stats;
+  }
+
+  /**
+   * Get global statistics
+   */
+  async getGlobalStats(): Promise<CompanyStats> {
+    const response = await apiClient.get<ApiResponse<{ stats: CompanyStats }>>('/companies/stats/all');
     return response.data.data.stats;
   }
 }

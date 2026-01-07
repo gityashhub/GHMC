@@ -48,26 +48,31 @@ export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => dashboardService.getStats(),
+    refetchInterval: 10000,
   });
 
   const { data: wasteFlowData, isLoading: wasteFlowLoading } = useQuery({
     queryKey: ['dashboard-waste-flow', currentYear],
     queryFn: () => dashboardService.getWasteFlow(currentYear),
+    refetchInterval: 10000,
   });
 
   const { data: revenueData, isLoading: revenueLoading } = useQuery({
     queryKey: ['dashboard-revenue', currentYear],
     queryFn: () => dashboardService.getRevenueChart(currentYear),
+    refetchInterval: 10000,
   });
 
   const { data: paymentStatus, isLoading: paymentStatusLoading } = useQuery({
     queryKey: ['dashboard-payment-status'],
     queryFn: () => dashboardService.getPaymentStatus(),
+    refetchInterval: 10000,
   });
 
   const { data: recentActivity, isLoading: activityLoading } = useQuery({
     queryKey: ['dashboard-recent-activity'],
     queryFn: () => dashboardService.getRecentActivity(5),
+    refetchInterval: 10000,
   });
 
   // Format revenue for display

@@ -19,6 +19,9 @@ const router = express.Router();
 // Get all companies
 router.get('/', authenticate, companiesController.getAllCompanies.bind(companiesController));
 
+// Get global statistics
+router.get('/stats/all', authenticate, companiesController.getGlobalStats.bind(companiesController));
+
 // Get company by ID
 router.get('/:id', authenticate, companiesController.getCompanyById.bind(companiesController));
 

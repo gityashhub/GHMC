@@ -11,6 +11,8 @@ export interface Invoice {
   subtotal: number;
   cgst: number | null;
   sgst: number | null;
+  additionalCharges?: number;
+  additionalChargesDescription?: string;
   grandTotal: number;
   paymentReceived: number;
   paymentReceivedOn: string | null;
@@ -41,6 +43,7 @@ export interface Invoice {
     quantity: number | null;
     amount: number | null;
     manifestNo: string | null;
+    description: string | null;
   }>;
   inwardEntries?: Array<{
     id: string;
@@ -78,6 +81,7 @@ export interface CreateInvoiceData {
     quantity?: number;
     amount?: number;
     manifestNo?: string;
+    description: string;
   }>;
   manifestNos?: string[];
   inwardEntryIds?: string[];
@@ -103,6 +107,7 @@ export interface UpdateInvoiceData {
     quantity?: number;
     amount?: number;
     manifestNo?: string;
+    description?: string;
   }> | null;
   manifestNos?: string[] | null;
   subtotal?: number;

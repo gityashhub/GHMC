@@ -17,6 +17,7 @@ class TransportersService {
       page = 1,
       limit = 20,
       search = '',
+      city = '',
       sortBy = 'createdAt',
       sortOrder = 'desc',
     } = options;
@@ -31,7 +32,12 @@ class TransportersService {
         { name: { contains: search, mode: 'insensitive' } },
         { transporterId: { contains: search, mode: 'insensitive' } },
         { contact: { contains: search, mode: 'insensitive' } },
+        { address: { contains: search, mode: 'insensitive' } },
       ];
+    }
+
+    if (city) {
+      where.address = { contains: city, mode: 'insensitive' };
     }
 
     // Get transporters and total count
@@ -41,6 +47,12 @@ class TransportersService {
         skip,
         take,
         orderBy: { [sortBy]: sortOrder },
+        include: {
+          invoices: {
+            take: 5,
+            orderBy: { date: 'desc' },
+          },
+        },
       }),
       prisma.transporter.count({ where }),
     ]);
@@ -156,7 +168,7 @@ class TransportersService {
       },
     });
 
-    return transporter;
+    return this.getTransporterById(transporter.id);
   }
 
   /**
@@ -193,7 +205,7 @@ class TransportersService {
       },
     });
 
-    return updated;
+    return this.getTransporterById(transporterId);
   }
 
   /**
@@ -287,6 +299,35 @@ class TransportersService {
       totalInvoiced,
       totalPaid,
       totalPending,
+    };
+  }
+  /**
+   * Get global statistics for all transporters
+   * @returns {Promise<object>} Global statistics object
+   */
+  async getGlobalStats() {
+    const transporters = await prisma.transporter.findMany({
+      select: { id: true, name: true },
+    });
+
+    let totalInvoiced = 0;
+    let totalPaid = 0;
+
+    // We can't easily include all related entries in one go efficiently if we need name-based matching for materials
+    // So we iterate and reuse the single stats logic, but optimized where possible or just iterate.
+    // Given the previous logic uses name matching, it is complex to do in one query.
+    // Iterating is safer to ensure consistency with single transporter stats.
+
+    for (const transporter of transporters) {
+      const stats = await this.getTransporterStats(transporter.id);
+      totalInvoiced += stats.totalInvoiced;
+      totalPaid += stats.totalPaid;
+    }
+
+    return {
+      totalInvoiced,
+      totalPaid,
+      totalPending: Math.max(0, totalInvoiced - totalPaid),
     };
   }
 }

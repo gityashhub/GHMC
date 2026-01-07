@@ -48,6 +48,7 @@ export interface GetTransportersParams {
   page?: number;
   limit?: number;
   search?: string;
+  city?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }
@@ -103,6 +104,14 @@ class TransportersService {
    */
   async getTransporterStats(transporterId: string): Promise<TransporterStats> {
     const response = await apiClient.get<ApiResponse<{ stats: TransporterStats }>>(`/transporters/${transporterId}/stats`);
+    return response.data.data.stats;
+  }
+
+  /**
+   * Get global statistics
+   */
+  async getGlobalStats(): Promise<TransporterStats> {
+    const response = await apiClient.get<ApiResponse<{ stats: TransporterStats }>>('/transporters/stats/all');
     return response.data.data.stats;
   }
 }

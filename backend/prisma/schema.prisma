@@ -219,6 +219,8 @@ model Invoice {
   billedTo         String?   @map("billed_to")
   shippedTo       String?   @map("shipped_to")
   description      String?   @db.Text
+  additionalCharges          Decimal?  @default(0) @map("additional_charges") @db.Decimal(10, 2)
+  additionalChargesDescription String?  @map("additional_charges_description") @db.Text
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
@@ -257,6 +259,7 @@ model InvoiceMaterial {
   quantity   Decimal? @db.Decimal(10, 2)
   amount     Decimal? @db.Decimal(10, 2)
   manifestNo String?  @map("manifest_no")
+  description String? @db.Text
   createdAt  DateTime @default(now()) @map("created_at")
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)

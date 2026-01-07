@@ -217,6 +217,23 @@ class CompaniesController {
       next(error);
     }
   }
+  /**
+   * Get global statistics
+   * GET /api/companies/stats/all
+   */
+  async getGlobalStats(req, res, next) {
+    try {
+      const stats = await companiesService.getGlobalStats();
+
+      res.status(200).json({
+        success: true,
+        data: { stats },
+        message: 'Global statistics retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new CompaniesController();

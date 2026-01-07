@@ -1,0 +1,17 @@
+--- Starting Filtering Reproduction ---
+Total entries in DB: 2
+Sample entry: wasteName="Processed Waste", month="January", manifestNo="MNF00045"
+
+Filtering by wasteName: "Processed Waste"
+Found: 2
+
+Search "LOT" + Filter wasteName: "Processed Waste"
+Found: 2
+
+Filtering by month: "January"
+Found: 2
+
+Global Search for month: "January"
+Found (should be >0 if global search works for month): 2
+
+--- End ---

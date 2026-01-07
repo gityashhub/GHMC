@@ -1,11 +1,11 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/useDebounce";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { DataTable } from "@/components/common/DataTable";
 import { Modal } from "@/components/common/Modal";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { Plus, Search, Filter, Eye, Trash2, Loader2, Edit, FileText, Download } from "lucide-react";
+import { Plus, Search, Filter, Eye, Trash2, Loader2, Edit, FileText, Download, Building2, Calendar, Truck, ChevronDown } from "lucide-react";
 import outwardService, { OutwardEntry, CreateOutwardEntryData, UpdateOutwardEntryData } from "@/services/outward.service";
 import transportersService from "@/services/transporters.service";
 import { toast } from "sonner";
@@ -20,6 +20,12 @@ import { isNotFutureDate, isValidManifestNumber, isPositiveNumber, isNonNegative
 import { exportToCSV, formatDateForExport, formatCurrencyForExport } from "@/utils/export";
 
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Outward() {
   const { user } = useAuth();
@@ -41,6 +47,8 @@ export default function Outward() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
+
+
   // Fetch transporters for form (cache for longer)
   const { data: transportersData } = useQuery({
     queryKey: ['transporters'],
@@ -49,15 +57,14 @@ export default function Outward() {
   });
 
   // Fetch outward entries (use debounced search term with pagination)
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['outward', debouncedSearchTerm, currentPage, pageSize],
     queryFn: () => outwardService.getEntries({
       search: debouncedSearchTerm || undefined,
       page: currentPage,
       limit: pageSize,
     }),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    placeholderData: (previousData) => previousData,
+    staleTime: 0, // Always fetch fresh data when filters change
   });
 
 
@@ -66,7 +73,8 @@ export default function Outward() {
   const { data: statsData } = useQuery({
     queryKey: ['outward-stats'],
     queryFn: () => outwardService.getStats(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always fetch fresh stats
+    refetchInterval: 10000,
   });
 
   // Fetch outward materials
@@ -83,6 +91,9 @@ export default function Outward() {
       queryClient.invalidateQueries({ queryKey: ['outward'] });
       queryClient.invalidateQueries({ queryKey: ['outward-summary'] });
       queryClient.invalidateQueries({ queryKey: ['outward-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-waste-flow'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-activity'] });
       toast.success('Outward entry created successfully');
       setIsModalOpen(false);
     },
@@ -98,6 +109,9 @@ export default function Outward() {
       queryClient.invalidateQueries({ queryKey: ['outward'] });
       queryClient.invalidateQueries({ queryKey: ['outward-summary'] });
       queryClient.invalidateQueries({ queryKey: ['outward-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-waste-flow'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-activity'] });
       toast.success('Entry updated successfully');
       setIsEditModalOpen(false);
       setEditingEntry(null);
@@ -114,6 +128,9 @@ export default function Outward() {
       queryClient.invalidateQueries({ queryKey: ['outward'] });
       queryClient.invalidateQueries({ queryKey: ['outward-summary'] });
       queryClient.invalidateQueries({ queryKey: ['outward-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-waste-flow'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-recent-activity'] });
       toast.success('Entry deleted successfully');
     },
     onError: (error: any) => {
@@ -171,9 +188,12 @@ export default function Outward() {
   // Reset to page 1 when search changes
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
+    setCurrentPage(1);
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setCurrentPage(1);
   };
 
   const handleDelete = useCallback((id: string) => {
@@ -348,59 +368,218 @@ export default function Outward() {
 
   return (
     <MainLayout title="Outward Management" subtitle="Manage waste dispatch to clients">
-      <div className="flex flex-col lg:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search company, manifest, or transporter..."
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="input-field pl-10 w-full"
-          />
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search truck, manifest, or site..."
+              value={searchTerm}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="input-field pl-10 w-full"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {searchTerm && (
+              <button
+                onClick={clearFilters}
+                className="text-xs text-muted-foreground hover:text-primary transition-colors pr-2 border-r border-border"
+              >
+                Clear Search
+              </button>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="btn-secondary flex-none justify-center px-4 gap-2">
+                  <Download className="w-4 h-4" />
+                  <span className="hidden md:inline">Export CSV</span>
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={async () => {
+                  try {
+                    const toastId = toast.loading('Exporting entries...');
+                    const { entries: allEntries } = await outwardService.getEntries({
+                      limit: 10000,
+                      search: debouncedSearchTerm || undefined,
+                    });
+
+                    exportToCSV(
+                      allEntries,
+                      [
+                        { key: 'computedSrNo', header: 'Sr No.' },
+                        { key: 'computedMonth', header: 'Month' },
+                        { key: 'date', header: 'Date' },
+                        { key: 'cementCompany', header: 'Cement Company' },
+                        { key: 'transporter', header: 'Transporter' },
+                        { key: 'location', header: 'Location' },
+                        { key: 'manifestNo', header: 'Manifest No.' },
+                        { key: 'vehicleNo', header: 'Vehicle No.' },
+                        { key: 'wasteName', header: 'Waste Name' },
+                        { key: 'quantity', header: 'Quantity' },
+                        { key: 'vehicleCapacity', header: 'Vehicle Capacity' },
+                        { key: 'rate', header: 'Rate' },
+                        { key: 'calculatedAmount', header: 'Amount' },
+                        { key: 'gst', header: 'GST' },
+                        { key: 'computedGrossAmount', header: 'Gross Amount' },
+                        { key: 'packing', header: 'Packing' },
+                        { key: 'invoiceNo', header: 'Invoice No.' },
+                        { key: 'dueOn', header: 'Due On' },
+                        { key: 'paidOn', header: 'Paid On' },
+                      ],
+                      `outward-entries-${new Date().toISOString().slice(0, 10)}.csv`,
+                      {
+                        computedSrNo: (_: any, item: any) => String(allEntries.indexOf(item) + 1),
+                        computedMonth: (value: any, item: any) => {
+                          if (item.month) return item.month;
+                          if (item.date) {
+                            try {
+                              return format(new Date(item.date), 'MMMM');
+                            } catch (e) {
+                              return '';
+                            }
+                          }
+                          return '';
+                        },
+                        date: (value: any) => {
+                          if (!value) return '';
+                          try {
+                            return format(new Date(value), 'dd/MM/yyyy');
+                          } catch (e) {
+                            return String(value);
+                          }
+                        },
+                        transporter: (value: any) => value?.name || '',
+                        quantity: (value: any, item: any) => `${value || 0} ${item.unit || ''}`,
+                        rate: (value: any) => formatCurrencyForExport(value),
+                        calculatedAmount: (_: any, item: any) => {
+                          const rate = Number(item.rate) || 0;
+                          const qty = Number(item.quantity) || 0;
+                          return formatCurrencyForExport(rate * qty);
+                        },
+                        gst: (value: any) => formatCurrencyForExport(value),
+                        computedGrossAmount: (_: any, item: any) => {
+                          // If invoice exists, it typically represents the final amount
+                          if (item.invoice?.grandTotal) return formatCurrencyForExport(item.invoice.grandTotal);
+                          // Fallback to locally stored grossAmount or calculate it
+                          const amt = Number(item.amount) || (Number(item.rate) * Number(item.quantity)) || 0;
+                          const gst = Number(item.gst) || 0;
+                          const det = Number(item.detCharges) || 0;
+                          return formatCurrencyForExport(amt + gst + det);
+                        },
+                        invoiceNo: (_: any, item: any) => item.invoice?.invoiceNo || '',
+                        dueOn: (value: any) => {
+                          if (!value) return '';
+                          try {
+                            return format(new Date(value), 'dd/MM/yyyy');
+                          } catch (e) {
+                            return String(value);
+                          }
+                        },
+                        paidOn: (value: any) => {
+                          if (!value) return '';
+                          try {
+                            return format(new Date(value), 'dd/MM/yyyy');
+                          } catch (e) {
+                            return String(value);
+                          }
+                        },
+                      }
+                    );
+                    toast.dismiss(toastId);
+                    toast.success('Outward entries exported successfully');
+                  } catch (error) {
+                    toast.error('Failed to export entries');
+                    console.error(error);
+                  }
+                }}>
+                  Export Entry Records
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={async () => {
+                  try {
+                    const toastId = toast.loading('Exporting material records...');
+                    const { materials: allMaterials } = await outwardMaterialsService.getMaterials({
+                      limit: 10000,
+                    });
+
+                    exportToCSV(
+                      allMaterials,
+                      [
+                        { key: 'date', header: 'Date' },
+                        { key: 'month', header: 'Month' },
+                        { key: 'cementCompany', header: 'Cement Company' },
+                        { key: 'manifestNo', header: 'Manifest No.' },
+                        { key: 'transporterName', header: 'Transporter' },
+                        { key: 'vehicleNo', header: 'Vehicle No.' },
+                        { key: 'wasteName', header: 'Waste Name' },
+                        { key: 'quantity', header: 'Quantity' },
+                        { key: 'unit', header: 'Unit' },
+                        ...(user?.role === 'admin' ? [
+                          { key: 'rate', header: 'Rate' },
+                          { key: 'amount', header: 'Amount' },
+                          { key: 'detCharges', header: 'Det Charges' },
+                          { key: 'gst', header: 'GST' },
+                          { key: 'grossAmount', header: 'Gross Amount' },
+                        ] : []),
+                        { key: 'invoiceNo', header: 'Invoice No.' },
+                      ],
+                      `outward-materials-${new Date().toISOString().slice(0, 10)}.csv`,
+                      {
+                        date: (value: any) => {
+                          if (!value) return '';
+                          try {
+                            return format(new Date(value), 'dd/MM/yyyy');
+                          } catch (e) {
+                            return String(value);
+                          }
+                        },
+                        month: (value: any, item: any) => {
+                          if (value) return value;
+                          if (item.date) {
+                            try {
+                              return format(new Date(item.date), 'MMMM');
+                            } catch (e) {
+                              return '';
+                            }
+                          }
+                          return '';
+                        },
+                        rate: (value: any) => formatCurrencyForExport(value),
+                        amount: (value: any) => formatCurrencyForExport(value),
+                        detCharges: (value: any) => formatCurrencyForExport(value),
+                        gst: (value: any) => formatCurrencyForExport(value),
+                        grossAmount: (value: any) => formatCurrencyForExport(value),
+                        paidOn: (value: any) => {
+                          if (!value) return '';
+                          try {
+                            return format(new Date(value), 'dd/MM/yyyy');
+                          } catch (e) {
+                            return String(value);
+                          }
+                        },
+                      }
+                    );
+                    toast.dismiss(toastId);
+                    toast.success('Material records exported successfully');
+                  } catch (error) {
+                    toast.error('Failed to export materials');
+                    console.error(error);
+                  }
+                }}>
+                  Export Material Records
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <button onClick={() => setIsModalOpen(true)} className="btn-primary flex-none justify-center px-4">
+              <Plus className="w-4 h-4 md:mr-2" /> <span className="hidden md:inline">Create Outward Entry</span>
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="btn-secondary flex-1 sm:flex-none justify-center">
-            <Filter className="w-4 h-4" /> Filters
-          </button>
-          <button
-            onClick={() => {
-              exportToCSV(
-                entries,
-                [
-                  { key: 'srNo', header: 'Sr No.' },
-                  { key: 'date', header: 'Date' },
-                  { key: 'manifestNo', header: 'Manifest No.' },
-                  { key: 'cementCompany', header: 'Cement Company' },
-                  { key: 'transporter', header: 'Transporter' },
-                  { key: 'quantity', header: 'Quantity' },
-                  { key: 'unit', header: 'Unit' },
-                  ...(user?.role === 'admin' ? [
-                    { key: 'rate', header: 'Rate' },
-                    { key: 'amount', header: 'Amount' },
-                  ] : []),
-                ],
-                `outward-entries-${new Date().toISOString().slice(0, 10)}.csv`,
-                {
-                  date: (value) => formatDateForExport(value),
-                  transporter: (value) => value?.name || '',
-                  ...(user?.role === 'admin' ? {
-                    rate: (value) => formatCurrencyForExport(value),
-                    amount: (value) => formatCurrencyForExport(value),
-                  } : {})
-                }
-              );
-              toast.success('Outward entries exported successfully');
-            }}
-            className="btn-secondary flex-1 sm:flex-none justify-center"
-          >
-            <Download className="w-4 h-4" /> Export CSV
-          </button>
-          <button onClick={() => setIsModalOpen(true)} className="btn-primary w-full sm:w-auto justify-center">
-            <Plus className="w-4 h-4" />Create Outward Entry
-          </button>
-        </div>
+
       </div>
+
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="glass-card p-4">
@@ -434,6 +613,7 @@ export default function Outward() {
         currentPage={pagination.page}
         totalPages={pagination.totalPages}
         onPageChange={(page) => setCurrentPage(page)}
+        isLoading={isFetching}
       />
 
       {/* Outward Materials Section */}

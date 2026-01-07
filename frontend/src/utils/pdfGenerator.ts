@@ -11,7 +11,7 @@ const numberToWords = (num: number): string => {
   const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
   if (num.toString().length > 9) return 'overflow';
-  
+
   const n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
   if (!n) return '';
 
@@ -21,7 +21,7 @@ const numberToWords = (num: number): string => {
   str += (Number(n[3]) !== 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
   str += (Number(n[4]) !== 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'Hundred ' : '';
   str += (Number(n[5]) !== 0) ? ((str !== '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
-  
+
   return str.trim();
 };
 
@@ -37,7 +37,7 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
 
 export const generateInvoicePDF = async (invoiceData: any) => {
   const doc = new jsPDF();
-  
+
   // Colors
   const greenColor = '#2E7D32'; // Approximate green from logo
   const blackColor = '#000000';
@@ -56,15 +56,26 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   doc.setTextColor(greenColor);
   doc.setFontSize(22);
   doc.setFont('helvetica', 'bold');
-  doc.text('GUJARAT HAZARDWEST', 105, 15, { align: 'center' });
-  doc.text('MANAGEMENT CO.', 105, 23, { align: 'center' });
+  const text1 = 'GUJARAT HAZARDWEST';
+  const text2 = 'MANAGEMENT CO.';
+  doc.text(text1, 105, 15, { align: 'center' });
+  doc.text(text2, 105, 23, { align: 'center' });
+
+  // Underline heading with same green
+  doc.setDrawColor(greenColor);
+  doc.setLineWidth(0.5);
+  const w1 = doc.getTextWidth(text1);
+  const w2 = doc.getTextWidth(text2);
+  doc.line(105 - w1 / 2, 16, 105 + w1 / 2, 16);
+  doc.line(105 - w2 / 2, 24, 105 + w2 / 2, 24);
+  doc.setDrawColor(blackColor); // Reset draw color
 
   // Address
   doc.setTextColor(blackColor);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.text('Plot No. 586, near LDH food agro, mokshi, Ta-savli, Dist.- Vadodara -391775', 105, 30, { align: 'center' });
-  
+
   // Add a small truck icon or symbol if possible, otherwise just text. 
   // The image has a truck icon. I'll skip it for now.
 
@@ -85,8 +96,8 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   const startY = 40;
   const col1 = 10;
   const col2 = 35;
-  const col3 = 110;
-  const col4 = 135;
+  const col3 = 105;
+  const col4 = 130;
 
   // Row 1
   doc.text('Inv. No.', col1 + 2, startY + 5);
@@ -112,8 +123,8 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   // Draw vertical lines for the grid
   doc.line(10, 40, 10, 61); // Left border
   doc.line(35, 40, 35, 61); // After Label 1
-  doc.line(110, 40, 110, 61); // Middle
-  doc.line(135, 40, 135, 61); // After Label 2
+  doc.line(105, 40, 105, 61); // Middle
+  doc.line(130, 40, 130, 61); // After Label 2
   doc.line(200, 40, 200, 61); // Right border
 
   // --- Billed To & Shipped To ---
@@ -135,8 +146,8 @@ export const generateInvoicePDF = async (invoiceData: any) => {
 
   // GSTIN for customer
   if (invoiceData.customerGst) {
-      doc.setFont('helvetica', 'bold');
-      doc.text(`GSTIN: ${invoiceData.customerGst}`, 12, addressY + 30); // Adjust Y based on address length
+    doc.setFont('helvetica', 'bold');
+    doc.text(`GSTIN: ${invoiceData.customerGst}`, 12, addressY + 30); // Adjust Y based on address length
   }
 
   // Box for Billed/Shipped
@@ -147,19 +158,72 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   const tableStartY = 96;
 
   const tableHead = [['Sr. No.', 'Description of goods/service', 'HSN code', 'Qty.', 'Unit', 'Rate', 'Amount']];
-  
-  const tableBody = invoiceData.items.map((item: any, index: number) => [
-    index + 1,
-    { content: item.description + (item.subDescription ? '\n' + item.subDescription : ''), styles: { fontStyle: 'bold' } },
-    item.hsnCode || '999432',
-    item.quantity,
-    item.unit,
-    Number(item.rate).toFixed(2),
-    Number(item.amount).toLocaleString('en-IN')
+
+  // --- Item Table Body ---
+  const tableBody: any[] = [];
+
+  // 1. Processing Charges Header
+  tableBody.push([
+    { content: '1', styles: { fontStyle: 'bold', halign: 'center' } },
+    { content: 'Processing charges', styles: { fontStyle: 'bold' } },
+    '', '', '', '', ''
   ]);
 
+  // General Notes as Sub-header
+  if (invoiceData.description) {
+    tableBody.push([
+      '',
+      invoiceData.description,
+      '', '', '', '', ''
+    ]);
+  }
+
+  // "Manifest nos." Label
+  tableBody.push([
+    '',
+    'Manifest nos.',
+    '', '', '', '', ''
+  ]);
+
+  // Individual Items (Manifests)
+  invoiceData.items.forEach((item: any) => {
+    // Show Manifest No as primary, only show description if specifically provided and distinct
+    const displayDescription = [item.manifestNo, item.description]
+      .filter((v, i, a) => v && a.indexOf(v) === i)
+      .join('\n');
+
+    tableBody.push([
+      '',
+      displayDescription || item.materialName || '',
+      item.hsnCode || '999432',
+      item.quantity ? Number(item.quantity).toLocaleString('en-IN') : '0',
+      item.unit || '',
+      item.rate ? Number(item.rate).toFixed(2) : '0.00',
+      item.amount ? Number(item.amount).toLocaleString('en-IN') : '0'
+    ]);
+  });
+
+  // 2. Additional Charges Section
+  if (invoiceData.additionalCharges && Number(invoiceData.additionalCharges) > 0) {
+    tableBody.push([
+      { content: '2', styles: { fontStyle: 'bold', halign: 'center' } },
+      { content: 'Additional Charges', styles: { fontStyle: 'bold' } },
+      '', '', '', '', ''
+    ]);
+
+    tableBody.push([
+      '',
+      invoiceData.additionalChargesDescription || 'Additional Charges',
+      '',
+      '0',
+      '',
+      '0.00',
+      Number(invoiceData.additionalCharges).toLocaleString('en-IN')
+    ]);
+  }
+
   // Add empty rows to fill space if needed, or just let autoTable handle it.
-  
+
   // Calculate totals
   const subTotal = invoiceData.subTotal;
   const cgst = invoiceData.cgst;
@@ -171,6 +235,7 @@ export const generateInvoicePDF = async (invoiceData: any) => {
     head: tableHead,
     body: tableBody,
     theme: 'plain',
+    margin: { left: 10, right: 10 },
     styles: {
       fontSize: 9,
       cellPadding: 2,
@@ -200,30 +265,41 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   let finalY = (doc as any).lastAutoTable.finalY;
 
   // --- Totals ---
-  // Sub Total
+  const totalQuantity = invoiceData.items.reduce((sum: number, item: any) => sum + (Number(item.quantity) || 0), 0);
+
+  // Sub Total row
   doc.rect(10, finalY, 190, 6);
   doc.setFont('helvetica', 'bold');
-  doc.text('Sub Total', 140, finalY + 4);
+  doc.text('Sub Total', 100, finalY + 4, { align: 'right' });
+  doc.text(totalQuantity.toLocaleString('en-IN'), 130, finalY + 4, { align: 'center' });
   doc.text(Number(subTotal).toLocaleString('en-IN'), 198, finalY + 4, { align: 'right' });
   finalY += 6;
 
   // CGST
-  doc.rect(10, finalY, 190, 6);
-  doc.setFont('helvetica', 'normal');
-  doc.text('CGST (9%)', 12, finalY + 4);
-  doc.text(Number(cgst).toLocaleString('en-IN'), 198, finalY + 4, { align: 'right' });
-  finalY += 6;
+  if (Number(cgst) > 0) {
+    doc.rect(10, finalY, 190, 6);
+    doc.setFont('helvetica', 'normal');
+    // Determine Index for CGST/SGST if they exist
+    doc.text('2', 17.5, finalY + 4, { align: 'center' });
+    doc.text('CGST', 27, finalY + 4);
+    doc.text(Number(cgst).toLocaleString('en-IN'), 198, finalY + 4, { align: 'right' });
+    finalY += 6;
+  }
 
   // SGST
-  doc.rect(10, finalY, 190, 6);
-  doc.text('SGST (9%)', 12, finalY + 4);
-  doc.text(Number(sgst).toLocaleString('en-IN'), 198, finalY + 4, { align: 'right' });
-  finalY += 6;
+  if (Number(sgst) > 0) {
+    doc.rect(10, finalY, 190, 6);
+    doc.setFont('helvetica', 'normal');
+    doc.text(Number(cgst) > 0 ? '3' : '2', 17.5, finalY + 4, { align: 'center' });
+    doc.text('SGST', 27, finalY + 4);
+    doc.text(Number(sgst).toLocaleString('en-IN'), 198, finalY + 4, { align: 'right' });
+    finalY += 6;
+  }
 
   // Grand Total
   doc.rect(10, finalY, 190, 7);
   doc.setFont('helvetica', 'bold');
-  doc.text('Grand Total', 140, finalY + 5);
+  doc.text('Grand Total', 100, finalY + 5, { align: 'right' });
   doc.text(Number(grandTotal).toLocaleString('en-IN'), 198, finalY + 5, { align: 'right' });
   finalY += 7;
 
@@ -238,30 +314,35 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   // --- Terms & Conditions ---
   doc.rect(10, finalY, 190, 35);
   doc.setFont('helvetica', 'bold');
-  doc.text('Terms & conditions', 12, finalY + 5);
-  doc.line(10, finalY + 6, 110, finalY + 6); // Underline title partially
+  const termsText = 'Terms & conditions';
+  doc.text(termsText, 12, finalY + 5);
+  const termsWidth = doc.getTextWidth(termsText);
+  doc.line(12, finalY + 6, 12 + termsWidth, finalY + 6);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text('1. E.& O.E', 12, finalY + 10);
-  doc.text('2. Subjected to vadodara juridiction', 12, finalY + 15);
-  doc.text('3. Company\'s PAN: ABDFG3216E', 12, finalY + 20);
-  doc.text('We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.', 12, finalY + 30);
-  
+  doc.text('E & O.E', 12, finalY + 10);
+  doc.text('1. Goods once sold will not be taken back.', 12, finalY + 15);
+  doc.text('2. Interest @ 18% p.a. will be charged if the payment is not made within the stipulated time.', 12, finalY + 20, { maxWidth: 100 });
+  doc.text('3. Subject to ‘Delhi’ Jurisdiction only.', 12, finalY + 28);
+  doc.text('We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.', 12, finalY + 33);
+
   finalY += 35;
 
   // --- Footer (Bank Details & Signature) ---
   const footerHeight = 40;
   doc.rect(10, finalY, 190, footerHeight);
-  
+
   // Vertical separator
-  doc.line(110, finalY, 110, finalY + footerHeight);
+  doc.line(105, finalY, 105, finalY + footerHeight);
 
   // Bank Details (Left)
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.text('Bank detail', 12, finalY + 5);
-  doc.line(12, finalY + 6, 30, finalY + 6); // Underline
+  const bankText = 'Bank detail';
+  doc.text(bankText, 12, finalY + 5);
+  const bankWidth = doc.getTextWidth(bankText);
+  doc.line(12, finalY + 6, 12 + bankWidth, finalY + 6);
 
   doc.setFont('helvetica', 'normal');
   doc.text('Bank Name: The Kalupur Commercial Co-Op. Bank Ltd.', 12, finalY + 12);
@@ -272,13 +353,13 @@ export const generateInvoicePDF = async (invoiceData: any) => {
 
   // Signature (Right)
   doc.setFontSize(8);
-  doc.text('For GUJARAT HAZARDWEST MANAGEMENT CO.', 112, finalY + 5);
-  
+  doc.text('For GUJARAT HAZARDWEST MANAGEMENT CO.', 107, finalY + 5);
+
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('SHIVRAJSINH', 112, finalY + 15);
-  doc.text('RAYSANGJI', 112, finalY + 22);
-  doc.text('GOHIL', 112, finalY + 29);
+  doc.text('SHIVRAJSINH', 107, finalY + 15);
+  doc.text('RAYSANGJI', 107, finalY + 22);
+  doc.text('GOHIL', 107, finalY + 29);
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');

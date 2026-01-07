@@ -134,6 +134,23 @@ class TransportersController {
       next(error);
     }
   }
+  /**
+   * Get global statistics
+   * GET /api/transporters/stats/all
+   */
+  async getGlobalStats(req, res, next) {
+    try {
+      const stats = await transportersService.getGlobalStats();
+
+      res.status(200).json({
+        success: true,
+        data: { stats },
+        message: 'Global statistics retrieved successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default new TransportersController();

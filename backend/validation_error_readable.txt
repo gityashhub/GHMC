@@ -1,0 +1,122 @@
+﻿curl.exe : Note: 
+Unnecessary use of 
+-X or --request, 
+POST is already 
+inferred.
+At line:1 char:1
++ & curl.exe -v -X 
+POST http://localhost
+:3000/api/outward `
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (Note: U   
+ nnecessa...ready    
+ inferred.:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+* Host 
+localhost:3000 was 
+resolved.
+* IPv6: ::1
+* IPv4: 127.0.0.1
+  % Total    % 
+Received % Xferd  
+Average Speed   Time 
+   Time     Time  
+Current
+                     
+            Dload  
+Upload   Total   
+Spent    Left  Speed
+
+  0     0    0     0 
+   0     0      0    
+  0 --:--:-- 
+--:--:-- --:--:--    
+ 0*   Trying 
+[::1]:3000...
+* Established 
+connection to 
+localhost (::1 port 
+3000) from ::1 port 
+54832 
+* using HTTP/1.x
+> POST /api/outward 
+HTTP/1.1
+
+> Host: 
+localhost:3000
+
+> User-Agent: 
+curl/8.16.0
+
+> Accept: */*
+
+> Content-Type: 
+application/json
+
+> Authorization: 
+Bearer 
+
+> Content-Length: 126
+
+> 
+
+} [126 bytes data]
+* upload completely 
+sent off: 126 bytes
+< HTTP/1.1 400 Bad 
+Request
+
+< X-Powered-By: 
+Express
+
+< Access-Control-Allo
+w-Origin: 
+http://localhost:5173
+
+< Vary: Origin, 
+Accept-Encoding
+
+< Access-Control-Allo
+w-Credentials: true
+
+< Content-Type: 
+application/json; 
+charset=utf-8
+
+< Content-Length: 949
+
+< ETag: W/"3b5-Mve+Pp
+Q2pOnvQV07dY16gW1t6F4
+"
+
+< Date: Wed, 31 Dec 
+2025 08:15:29 GMT
+
+< Connection: 
+keep-alive
+
+< Keep-Alive: 
+timeout=5
+
+< 
+
+{ [949 bytes data]
+
+100  1075  100   949 
+ 100   126   152k  
+20764 --:--:-- 
+--:--:-- --:--:--  
+209k
+* Connection #0 to 
+host localhost:3000 
+left intact
+{"success":false,"error":{"code":"INTERNAL_ERROR","message":"Expected property name or '}' in JSON at position 1 (line 1 column 2)","stack":"SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)\n    at JSON.parse (<anonymous>)\n    at parse (D:\\ghmccode\\backend\\node_modules\\body-parser\\lib\\types\\json.js:92:19)\n    at D:\\ghmccode\\backend\\node_modules\\body-parser\\lib\\read.js:128:18\n    at AsyncResource.runInAsyncScope (node:async_hooks:211:14)\n    at invokeCallback (D:\\ghmccode\\backend\\node_modules\\raw-body\\index.js:238:16)\n    at done (D:\\ghmccode\\backend\\node_modules\\raw-body\\index.js:227:7)\n    at IncomingMessage.onEnd (D:\\ghmccode\\backend\\node_modules\\raw-body\\index.js:287:7)\n    at IncomingMessage.emit (node:events:518:28)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)"}}

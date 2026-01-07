@@ -67,21 +67,23 @@ class InvoicesService {
    * @returns {Promise<{cgst: number, sgst: number, grandTotal: number}>}
    */
   async calculateTotals(subtotal, options = {}) {
-    const { cgstRate, sgstRate } = options;
+    const { cgstRate, sgstRate, additionalCharges = 0 } = options;
 
     let cgst = 0;
     let sgst = 0;
 
+    const baseForTax = subtotal + additionalCharges;
+
     if (cgstRate !== undefined && sgstRate !== undefined) {
-      cgst = (subtotal * cgstRate) / 100;
-      sgst = (subtotal * sgstRate) / 100;
+      cgst = (baseForTax * cgstRate) / 100;
+      sgst = (baseForTax * sgstRate) / 100;
     } else {
       const rates = await this.getGSTRates();
-      cgst = (subtotal * rates.cgst) / 100;
-      sgst = (subtotal * rates.sgst) / 100;
+      cgst = (baseForTax * rates.cgst) / 100;
+      sgst = (baseForTax * rates.sgst) / 100;
     }
 
-    const grandTotal = subtotal + cgst + sgst;
+    const grandTotal = baseForTax + cgst + sgst;
 
     return {
       cgst: parseFloat(cgst.toFixed(2)),
@@ -97,7 +99,9 @@ class InvoicesService {
    * @returns {string} Status: 'paid', 'partial', or 'pending'
    */
   getStatus(paymentReceived, grandTotal) {
-    if (paymentReceived >= grandTotal) return 'paid';
+    // Use partial tolerance for float precision issues
+    const epsilon = 0.01;
+    if (paymentReceived >= grandTotal - epsilon) return 'paid';
     if (paymentReceived > 0) return 'partial';
     return 'pending';
   }
@@ -316,6 +320,8 @@ class InvoicesService {
       billedTo,
       shippedTo,
       description,
+      additionalCharges,
+      additionalChargesDescription,
       paymentReceived,
       paymentReceivedOn,
     } = invoiceData;
@@ -363,7 +369,8 @@ class InvoicesService {
 
     // Calculate totals
     const calculatedSubtotal = subtotal || materials.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
-    const totals = await this.calculateTotals(calculatedSubtotal, { cgstRate, sgstRate });
+    const initialAdditionalCharges = additionalCharges ? parseFloat(additionalCharges) : 0;
+    const totals = await this.calculateTotals(calculatedSubtotal, { cgstRate, sgstRate, additionalCharges: initialAdditionalCharges });
 
     // Determine status
     const initialPayment = paymentReceived ? parseFloat(paymentReceived) : 0;
@@ -407,6 +414,8 @@ class InvoicesService {
         billedTo: billedTo || null,
         shippedTo: shippedTo || null,
         description: description || null,
+        additionalCharges: initialAdditionalCharges,
+        additionalChargesDescription: additionalChargesDescription || null,
         invoiceManifests: {
           create: manifestNos.map((manifestNo) => ({
             manifestNo,
@@ -420,6 +429,7 @@ class InvoicesService {
             quantity: material.quantity ? parseFloat(material.quantity) : null,
             amount: material.amount ? parseFloat(material.amount) : null,
             manifestNo: material.manifestNo || null,
+            description: material.description || null,
           })),
         },
       },
@@ -521,10 +531,14 @@ class InvoicesService {
       subtotal,
       cgstRate,
       sgstRate,
+      paymentReceived,
+      paymentReceivedOn,
       gstNo,
       billedTo,
       shippedTo,
       description,
+      additionalCharges,
+      additionalChargesDescription,
     } = updateData;
 
     // Calculate new totals if subtotal changed
@@ -539,12 +553,16 @@ class InvoicesService {
         ? subtotal
         : materials?.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0) || invoice.subtotal;
 
-      totals = await this.calculateTotals(newSubtotal, { cgstRate, sgstRate });
+      totals = await this.calculateTotals(newSubtotal, {
+        cgstRate,
+        sgstRate,
+        additionalCharges: additionalCharges !== undefined ? parseFloat(additionalCharges) : parseFloat(invoice.additionalCharges || 0)
+      });
     }
 
     // Update status based on payment
     const status = this.getStatus(
-      parseFloat(invoice.paymentReceived),
+      paymentReceived !== undefined ? parseFloat(paymentReceived) : parseFloat(invoice.paymentReceived),
       totals.grandTotal
     );
 
@@ -556,11 +574,15 @@ class InvoicesService {
       cgst: totals.cgst,
       sgst: totals.sgst,
       grandTotal: totals.grandTotal,
+      paymentReceived: paymentReceived !== undefined ? parseFloat(paymentReceived) : undefined,
+      paymentReceivedOn: paymentReceivedOn !== undefined ? (paymentReceivedOn ? new Date(paymentReceivedOn) : null) : undefined,
       status,
       gstNo,
       billedTo,
       shippedTo,
       description,
+      additionalCharges: additionalCharges !== undefined ? parseFloat(additionalCharges) : undefined,
+      additionalChargesDescription,
     };
 
     // Remove undefined values
@@ -598,6 +620,7 @@ class InvoicesService {
             quantity: material.quantity ? parseFloat(material.quantity) : null,
             amount: material.amount ? parseFloat(material.amount) : null,
             manifestNo: material.manifestNo || null,
+            description: material.description || null,
           })),
         });
       }
@@ -617,6 +640,27 @@ class InvoicesService {
             invoiceId,
             manifestNo,
           })),
+        });
+      }
+    }
+
+    // Update related inward entries if provided (Append/Consolidate Logic)
+    if (updateData.inwardEntryIds) {
+      // 1. Unlink all current entries for this invoice first to ensure a clean state
+      await prisma.inwardEntry.updateMany({
+        where: { invoiceId },
+        data: { invoiceId: null },
+      });
+
+      // 2. Link only the provided entries
+      if (updateData.inwardEntryIds.length > 0) {
+        await prisma.inwardEntry.updateMany({
+          where: {
+            id: { in: updateData.inwardEntryIds },
+          },
+          data: {
+            invoiceId,
+          },
         });
       }
     }

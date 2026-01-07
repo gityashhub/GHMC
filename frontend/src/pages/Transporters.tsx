@@ -7,7 +7,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { DataTable } from "@/components/common/DataTable";
 import { Modal } from "@/components/common/Modal";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { Plus, Search, Filter, Truck, Eye, Trash2, Loader2, Edit } from "lucide-react";
+import { Plus, Search, Filter, Truck, Eye, Trash2, Loader2, Edit, MapPin } from "lucide-react";
 import transportersService, { Transporter, CreateTransporterData, UpdateTransporterData } from "@/services/transporters.service";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ export default function Transporters() {
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [selectedTransporter, setSelectedTransporter] = useState<Transporter | null>(null);
   const [editingTransporter, setEditingTransporter] = useState<Transporter | null>(null);
+
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; id: string | null }>({
     isOpen: false,
     id: null,
@@ -39,15 +40,21 @@ export default function Transporters() {
   });
 
   // Fetch transporters (use debounced search term with pagination)
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ['transporters', debouncedSearchTerm, currentPage, pageSize],
     queryFn: () => transportersService.getTransporters({
       search: debouncedSearchTerm || undefined,
       page: currentPage,
       limit: pageSize,
     }),
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    placeholderData: keepPreviousData,
+    staleTime: 0, // Always fetch fresh data when filters change
+  });
+
+  // Fetch global stats
+  const { data: statsData } = useQuery({
+    queryKey: ['transporter-stats'],
+    queryFn: () => transportersService.getGlobalStats(),
+    staleTime: 0,
   });
 
   // Create transporter mutation
@@ -55,6 +62,7 @@ export default function Transporters() {
     mutationFn: (data: CreateTransporterData) => transportersService.createTransporter(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transporters'] });
+      queryClient.invalidateQueries({ queryKey: ['transporter-stats'] });
       toast.success('Transporter created successfully');
       handleCloseModal();
     },
@@ -68,6 +76,7 @@ export default function Transporters() {
     mutationFn: ({ id, data }: { id: string; data: UpdateTransporterData }) => transportersService.updateTransporter(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transporters'] });
+      queryClient.invalidateQueries({ queryKey: ['transporter-stats'] });
       toast.success('Transporter updated successfully');
       handleCloseModal();
     },
@@ -81,6 +90,7 @@ export default function Transporters() {
     mutationFn: (id: string) => transportersService.deleteTransporter(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transporters'] });
+      queryClient.invalidateQueries({ queryKey: ['transporter-stats'] });
       toast.success('Transporter deleted successfully');
     },
     onError: (error: any) => {
@@ -94,10 +104,10 @@ export default function Transporters() {
   // Reset to page 1 when search changes
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
-    if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
+    setCurrentPage(1);
   };
+
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -185,10 +195,10 @@ export default function Transporters() {
   };
 
 
-  // Calculate summary stats
-  const totalInvoiced = transporters.reduce((sum, t) => sum + (t.totalInvoiced || 0), 0);
-  const totalPaid = transporters.reduce((sum, t) => sum + (t.totalPaid || 0), 0);
-  const totalPending = transporters.reduce((sum, t) => sum + (t.totalPending || 0), 0);
+  // Calculate summary stats (Use global stats if available)
+  const totalInvoiced = statsData?.totalInvoiced || 0;
+  const totalPaid = statsData?.totalPaid || 0;
+  const totalPending = statsData?.totalPending || 0;
 
   const columns = [
     {
@@ -315,26 +325,33 @@ export default function Transporters() {
   return (
     <MainLayout title="Transporters" subtitle="Manage waste transporters">
       {/* Actions Bar */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search transporters by name or ID..."
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="input-field pl-10 w-full"
-          />
+      {/* Real-time Filters Bar with Labels */}
+      {/* Search Bar */}
+      <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-6">
+        <div className="flex-1 p-4 rounded-xl bg-secondary/30 border border-primary/10 shadow-sm w-full">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-1">Search</label>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search by name, GST, or contact..."
+                value={searchTerm}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="input-field pl-9 w-full text-xs h-9 bg-background"
+              />
+            </div>
+          </div>
         </div>
-        <button className="btn-secondary">
-          <Filter className="w-4 h-4" />
-          Filters
-        </button>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary">
-          <Plus className="w-4 h-4" />
-          Add Transporter
-        </button>
+        <Button
+          onClick={() => setIsModalOpen(true)}
+          className="h-[68px] px-6 flex items-center gap-2 w-full md:w-auto justify-center"
+        >
+          <Plus className="w-5 h-5" />
+          <span>Add Transporter</span>
+        </Button>
       </div>
+
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -375,6 +392,7 @@ export default function Transporters() {
         currentPage={pagination.page}
         totalPages={pagination.totalPages}
         onPageChange={(page) => setCurrentPage(page)}
+        isLoading={isFetching}
       />
 
       {/* Add Transporter Modal */}
@@ -464,7 +482,7 @@ export default function Transporters() {
               type="text"
               name="gstNumber"
               className="input-field w-full"
-              placeholder="27AABCU9603R1ZM"
+              placeholder="Enter 15-digit GST number"
               value={formData.gstNumber}
               onChange={handleInputChange}
             />

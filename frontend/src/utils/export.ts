@@ -8,7 +8,7 @@
 export function arrayToCSV<T extends Record<string, any>>(
   data: T[],
   columns: Array<{ key: keyof T | string; header: string }>,
-  formatters?: Record<string, (value: any) => string>
+  formatters?: Record<string, (value: any, item: T) => string>
 ): string {
   if (data.length === 0) return '';
 
@@ -21,10 +21,10 @@ export function arrayToCSV<T extends Record<string, any>>(
     const row = columns.map(col => {
       const key = col.key as string;
       let value = item[key];
-      
+
       // Apply formatter if provided
       if (formatters && formatters[key]) {
-        value = formatters[key](value);
+        value = formatters[key](value, item);
       } else if (value === null || value === undefined) {
         value = '';
       } else if (typeof value === 'object') {
@@ -33,12 +33,12 @@ export function arrayToCSV<T extends Record<string, any>>(
       } else {
         value = String(value);
       }
-      
+
       // Escape commas and quotes
       if (value.includes(',') || value.includes('"') || value.includes('\n')) {
         value = `"${value.replace(/"/g, '""')}"`;
       }
-      
+
       return value;
     });
     csvRows.push(row.join(','));
@@ -54,15 +54,15 @@ export function downloadCSV(csvContent: string, filename: string): void {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
-  
+
   link.setAttribute('href', url);
   link.setAttribute('download', filename);
   link.style.visibility = 'hidden';
-  
+
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  
+
   URL.revokeObjectURL(url);
 }
 
@@ -73,7 +73,7 @@ export function exportToCSV<T extends Record<string, any>>(
   data: T[],
   columns: Array<{ key: keyof T | string; header: string }>,
   filename: string,
-  formatters?: Record<string, (value: any) => string>
+  formatters?: Record<string, (value: any, item: T) => string>
 ): void {
   const csv = arrayToCSV(data, columns, formatters);
   downloadCSV(csv, filename);

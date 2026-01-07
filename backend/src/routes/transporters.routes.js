@@ -13,6 +13,9 @@ const router = express.Router();
 // Get all transporters
 router.get('/', authenticate, transportersController.getAllTransporters.bind(transportersController));
 
+// Get global statistics
+router.get('/stats/all', authenticate, transportersController.getGlobalStats.bind(transportersController));
+
 // Get transporter by ID
 router.get('/:id', authenticate, transportersController.getTransporterById.bind(transportersController));
 

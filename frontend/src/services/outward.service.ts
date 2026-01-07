@@ -179,6 +179,8 @@ export interface GetOutwardEntriesParams {
   search?: string;
   transporterId?: string;
   cementCompany?: string;
+  wasteName?: string;
+  month?: string;
   startDate?: string;
   endDate?: string;
   sortBy?: string;

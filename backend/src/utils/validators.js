@@ -148,6 +148,8 @@ export const createInwardEntrySchema = Joi.object({
   month: Joi.string().optional().allow('', null),
   lotNo: Joi.string().optional().allow('', null),
   srNo: Joi.number().integer().positive().optional(),
+  invoiceNo: Joi.string().optional().allow('', null),
+  dcNo: Joi.string().optional().allow('', null),
 });
 
 export const updateInwardEntrySchema = Joi.object({
@@ -162,6 +164,8 @@ export const updateInwardEntrySchema = Joi.object({
   unit: Joi.string().valid('MT', 'Kg', 'KL').optional(),
   month: Joi.string().optional().allow('', null),
   lotNo: Joi.string().optional().allow('', null),
+  invoiceNo: Joi.string().optional().allow('', null),
+  dcNo: Joi.string().optional().allow('', null),
 });
 
 // Inward Material validation schemas
@@ -326,6 +330,7 @@ export const createInvoiceSchema = Joi.object({
       quantity: Joi.number().positive().optional().allow(null),
       amount: Joi.number().positive().optional().allow(null),
       manifestNo: Joi.string().optional().allow('', null),
+      description: Joi.string().optional().allow('', null),
     })
   ).optional().default([]),
   manifestNos: Joi.array().items(Joi.string()).optional().default([]),
@@ -334,10 +339,14 @@ export const createInvoiceSchema = Joi.object({
   subtotal: Joi.number().positive().optional(),
   cgstRate: Joi.number().min(0).max(100).optional(),
   sgstRate: Joi.number().min(0).max(100).optional(),
+  paymentReceived: Joi.number().min(0).optional().default(0),
+  paymentReceivedOn: Joi.date().optional().allow(null),
   gstNo: Joi.string().max(15).optional().allow('', null),
   billedTo: Joi.string().max(500).optional().allow('', null),
   shippedTo: Joi.string().max(500).optional().allow('', null),
-  description: Joi.string().optional().allow('', null),
+  description: Joi.string().required(),
+  additionalCharges: Joi.number().min(0).optional().default(0),
+  additionalChargesDescription: Joi.string().optional().allow('', null),
 });
 
 export const updateInvoiceSchema = Joi.object({
@@ -351,16 +360,22 @@ export const updateInvoiceSchema = Joi.object({
       quantity: Joi.number().positive().optional().allow(null),
       amount: Joi.number().positive().optional().allow(null),
       manifestNo: Joi.string().optional().allow('', null),
+      description: Joi.string().optional().allow('', null),
     })
   ).optional().allow(null),
   manifestNos: Joi.array().items(Joi.string()).optional().allow(null),
+  inwardEntryIds: Joi.array().items(Joi.string().uuid()).optional().allow(null),
   subtotal: Joi.number().positive().optional(),
   cgstRate: Joi.number().min(0).max(100).optional(),
   sgstRate: Joi.number().min(0).max(100).optional(),
+  paymentReceived: Joi.number().min(0).optional().allow(null),
+  paymentReceivedOn: Joi.date().optional().allow(null),
   gstNo: Joi.string().max(15).optional().allow('', null),
   billedTo: Joi.string().max(500).optional().allow('', null),
   shippedTo: Joi.string().max(500).optional().allow('', null),
   description: Joi.string().optional().allow('', null),
+  additionalCharges: Joi.number().min(0).optional().allow(null),
+  additionalChargesDescription: Joi.string().optional().allow('', null),
 });
 
 export const updateInvoicePaymentSchema = Joi.object({
@@ -406,4 +421,3 @@ export const validate = (schema, property = 'body') => {
     next();
   };
 };
-

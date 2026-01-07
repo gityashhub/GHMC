@@ -22,7 +22,7 @@ export function isValidPhone(phone: string): boolean {
  * Validate GST number format (15 characters: 2 state + 10 PAN + 3 entity + Z + check digit)
  */
 export function isValidGST(gst: string): boolean {
-  const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+  const gstRegex = /^[0-9A-Z]{15}$/;
   return gstRegex.test(gst.toUpperCase());
 }
 

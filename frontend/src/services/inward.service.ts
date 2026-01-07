@@ -24,8 +24,10 @@ export interface InwardEntry {
     id: string;
     invoiceNo: string;
     grandTotal: number;
+    subtotal: number;
     paymentReceived: number;
     paymentReceivedOn: string | null;
+    status: "paid" | "partial" | "pending";
   };
   inwardMaterials?: InwardMaterial[];
   createdAt: string;
@@ -122,6 +124,8 @@ export interface GetInwardEntriesParams {
   limit?: number;
   search?: string;
   companyId?: string;
+  wasteName?: string;
+  month?: string;
   startDate?: string;
   endDate?: string;
   sortBy?: string;

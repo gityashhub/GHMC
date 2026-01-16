@@ -27,9 +27,16 @@ class OutwardController {
         sortOrder,
       });
 
+      const role = req.user?.role;
+      const entries = result.entries.map(entry => {
+        if (role === 'admin') return entry;
+        const { rate, amount, gst, grossAmount, detCharges, ...rest } = entry;
+        return rest;
+      });
+
       res.status(200).json({
         success: true,
-        data: result.entries,
+        data: entries,
         pagination: result.pagination,
         message: 'Outward entries retrieved successfully',
       });
@@ -46,6 +53,15 @@ class OutwardController {
     try {
       const { id } = req.params;
       const entry = await outwardService.getEntryById(id);
+
+      const role = req.user?.role;
+      if (role !== 'admin' && entry) {
+        delete entry.rate;
+        delete entry.amount;
+        delete entry.gst;
+        delete entry.grossAmount;
+        delete entry.detCharges;
+      }
 
       res.status(200).json({
         success: true,
@@ -68,6 +84,15 @@ class OutwardController {
 
       logger.info(`Outward entry created: ${entry.manifestNo} (${entry.id})`);
 
+      const role = req.user?.role;
+      if (role !== 'admin' && entry) {
+        delete entry.rate;
+        delete entry.amount;
+        delete entry.gst;
+        delete entry.grossAmount;
+        delete entry.detCharges;
+      }
+
       res.status(201).json({
         success: true,
         data: { entry },
@@ -89,6 +114,15 @@ class OutwardController {
       const entry = await outwardService.updateEntry(id, updateData);
 
       logger.info(`Outward entry updated: ${entry.manifestNo} (${entry.id})`);
+
+      const role = req.user?.role;
+      if (role !== 'admin' && entry) {
+        delete entry.rate;
+        delete entry.amount;
+        delete entry.gst;
+        delete entry.grossAmount;
+        delete entry.detCharges;
+      }
 
       res.status(200).json({
         success: true,

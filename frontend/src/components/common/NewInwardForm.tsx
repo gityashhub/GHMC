@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { mockCompanies } from "@/lib/companies";
+import { useAuth } from "@/contexts/AuthContext";
 
 export type NewInwardFormValues = {
   date?: string;
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function NewInwardForm({ onCancel, onCreate }: Props) {
+  const { user } = useAuth();
   const [selectedCompany, setSelectedCompany] = useState<any>(null);
   const [selectedMaterials, setSelectedMaterials] = useState<{ material: string; rate: number; unit: "MT" | "Kg" | "KL"; quantity: number; manifestNo: string }[]>([]);
   const [formData, setFormData] = useState({
@@ -192,7 +194,7 @@ export default function NewInwardForm({ onCancel, onCreate }: Props) {
                 .filter((material: any) => !selectedMaterials.some(m => m.material === material.material))
                 .map((material: any, index: number) => (
                   <option key={index} value={material.material}>
-                    {material.material} (₹{material.rate}/{material.unit})
+                    {material.material} {user?.role === 'admin' ? `(₹${material.rate}/${material.unit})` : ''}
                   </option>
                 ))}
             </select>
@@ -227,14 +229,16 @@ export default function NewInwardForm({ onCancel, onCreate }: Props) {
                     {material.unit}
                   </div>
                 </div>
-                <div className="w-24">
-                  <label className="block text-xs font-medium text-foreground mb-1">
-                    Rate
-                  </label>
-                  <div className="text-sm text-muted-foreground p-2 bg-muted/50 rounded">
-                    ₹{material.rate}
+                {(user?.role === 'admin') && (
+                  <div className="w-24">
+                    <label className="block text-xs font-medium text-foreground mb-1">
+                      Rate
+                    </label>
+                    <div className="text-sm text-muted-foreground p-2 bg-muted/50 rounded">
+                      ₹{material.rate}
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="w-24">
                   <label className="block text-xs font-medium text-foreground mb-1">
                     Qty

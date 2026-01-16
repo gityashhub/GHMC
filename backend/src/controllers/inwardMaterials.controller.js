@@ -24,9 +24,16 @@ class InwardMaterialsController {
         sortOrder,
       });
 
+      const role = req.user?.role;
+      const materials = result.materials.map(material => {
+        if (role === 'admin') return material;
+        const { rate, amount, detCharges, gst, grossAmount, ...rest } = material;
+        return rest;
+      });
+
       res.status(200).json({
         success: true,
-        data: result.materials,
+        data: materials,
         pagination: result.pagination,
         message: 'Inward materials retrieved successfully',
       });
@@ -43,6 +50,15 @@ class InwardMaterialsController {
     try {
       const { id } = req.params;
       const material = await inwardMaterialsService.getMaterialById(id);
+
+      const role = req.user?.role;
+      if (role !== 'admin' && material) {
+        delete material.rate;
+        delete material.amount;
+        delete material.detCharges;
+        delete material.gst;
+        delete material.grossAmount;
+      }
 
       res.status(200).json({
         success: true,
@@ -65,6 +81,15 @@ class InwardMaterialsController {
 
       logger.info(`Inward material created: ${material.id}`);
 
+      const role = req.user?.role;
+      if (role !== 'admin' && material) {
+        delete material.rate;
+        delete material.amount;
+        delete material.detCharges;
+        delete material.gst;
+        delete material.grossAmount;
+      }
+
       res.status(201).json({
         success: true,
         data: { material },
@@ -86,6 +111,15 @@ class InwardMaterialsController {
       const material = await inwardMaterialsService.updateMaterial(id, updateData);
 
       logger.info(`Inward material updated: ${material.id}`);
+
+      const role = req.user?.role;
+      if (role !== 'admin' && material) {
+        delete material.rate;
+        delete material.amount;
+        delete material.detCharges;
+        delete material.gst;
+        delete material.grossAmount;
+      }
 
       res.status(200).json({
         success: true,

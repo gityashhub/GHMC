@@ -23,9 +23,21 @@ class CompaniesController {
         sortOrder,
       });
 
+      const role = req.user?.role;
+      const companies = result.companies.map(company => {
+        if (role === 'admin' || !company.materials) return company;
+        return {
+          ...company,
+          materials: company.materials.map(m => {
+            const { rate, ...rest } = m;
+            return rest;
+          })
+        };
+      });
+
       res.status(200).json({
         success: true,
-        data: result.companies,
+        data: companies,
         pagination: result.pagination,
         message: 'Companies retrieved successfully',
       });
@@ -42,6 +54,14 @@ class CompaniesController {
     try {
       const { id } = req.params;
       const company = await companiesService.getCompanyById(id);
+
+      const role = req.user?.role;
+      if (role !== 'admin' && company && company.materials) {
+        company.materials = company.materials.map(m => {
+          const { rate, ...rest } = m;
+          return rest;
+        });
+      }
 
       res.status(200).json({
         success: true,
@@ -125,9 +145,16 @@ class CompaniesController {
       const { id } = req.params;
       const materials = await companiesService.getCompanyMaterials(id);
 
+      const role = req.user?.role;
+      const strippedMaterials = materials.map(m => {
+        if (role === 'admin') return m;
+        const { rate, ...rest } = m;
+        return rest;
+      });
+
       res.status(200).json({
         success: true,
-        data: { materials },
+        data: { materials: strippedMaterials },
         message: 'Materials retrieved successfully',
       });
     } catch (error) {
@@ -146,6 +173,11 @@ class CompaniesController {
       const material = await companiesService.addMaterial(id, materialData);
 
       logger.info(`Material added to company ${id}: ${material.materialName}`);
+
+      const role = req.user?.role;
+      if (role !== 'admin' && material) {
+        delete material.rate;
+      }
 
       res.status(201).json({
         success: true,
@@ -168,6 +200,11 @@ class CompaniesController {
       const material = await companiesService.updateMaterial(id, materialId, updateData);
 
       logger.info(`Material updated: ${material.id}`);
+
+      const role = req.user?.role;
+      if (role !== 'admin' && material) {
+        delete material.rate;
+      }
 
       res.status(200).json({
         success: true,

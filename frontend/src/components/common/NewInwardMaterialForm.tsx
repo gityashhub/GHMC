@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface MaterialData {
   invoiceNo?: string;
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export default function NewInwardMaterialForm({ onCancel, onCreate, transporters, existingEntries = [] }: Props) {
+  const { user } = useAuth();
   const [form, setForm] = useState<Partial<MaterialData>>({
     transporterName: transporters[0] || "",
     invoiceNo: "",
@@ -46,9 +48,9 @@ export default function NewInwardMaterialForm({ onCancel, onCreate, transporters
   return (
     <form
       onSubmit={(e) => {
-          e.preventDefault();
-          onCreate({ ...form, selectedEntryId });
-        }}
+        e.preventDefault();
+        onCreate({ ...form, selectedEntryId });
+      }}
       className="space-y-4"
     >
       <div>
@@ -96,35 +98,39 @@ export default function NewInwardMaterialForm({ onCancel, onCreate, transporters
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm text-muted-foreground">Rate</label>
-          <input type="number" className="input-field w-full" value={form.rate as any} onChange={(e) => update("rate", Number(e.target.value))} />
-        </div>
-        <div>
-          <label className="block text-sm text-muted-foreground">Amount</label>
-          <input type="number" className="input-field w-full" value={form.amount as any} onChange={(e) => update("amount", Number(e.target.value))} />
-        </div>
-        <div>
-          <label className="block text-sm text-muted-foreground">Detention. charges.</label>
-          <input type="number" className="input-field w-full" value={form.detCharges as any} onChange={(e) => update("detCharges", Number(e.target.value))} />
-        </div>
-      </div>
+      {user?.role === 'admin' && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm text-muted-foreground">Rate</label>
+              <input type="number" className="input-field w-full" value={form.rate as any} onChange={(e) => update("rate", Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground">Amount</label>
+              <input type="number" className="input-field w-full" value={form.amount as any} onChange={(e) => update("amount", Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground">Detention. charges.</label>
+              <input type="number" className="input-field w-full" value={form.detCharges as any} onChange={(e) => update("detCharges", Number(e.target.value))} />
+            </div>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm text-muted-foreground">GST</label>
-          <input type="number" className="input-field w-full" value={form.gst as any} onChange={(e) => update("gst", Number(e.target.value))} />
-        </div>
-        <div>
-          <label className="block text-sm text-muted-foreground">Gross Amount</label>
-          <input type="number" className="input-field w-full" value={form.grossAmount as any} onChange={(e) => update("grossAmount", Number(e.target.value))} />
-        </div>
-        <div>
-          <label className="block text-sm text-muted-foreground">Paid On</label>
-          <input type="date" className="input-field w-full" value={form.paidOn as any} onChange={(e) => update("paidOn", e.target.value)} />
-        </div>
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm text-muted-foreground">GST</label>
+              <input type="number" className="input-field w-full" value={form.gst as any} onChange={(e) => update("gst", Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground">Gross Amount</label>
+              <input type="number" className="input-field w-full" value={form.grossAmount as any} onChange={(e) => update("grossAmount", Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground">Paid On</label>
+              <input type="date" className="input-field w-full" value={form.paidOn as any} onChange={(e) => update("paidOn", e.target.value)} />
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="flex justify-end gap-3 pt-4">
         <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>

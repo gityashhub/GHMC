@@ -947,7 +947,7 @@ function InwardEntryForm({ companies, entry, onCancel, onSubmit, isLoading }: an
             <option value="">Select Waste Material</option>
             {companyMaterials.map((m: any) => (
               <option key={m.id} value={m.materialName}>
-                {m.materialName} ({m.rate}/{m.unit})
+                {m.materialName} {user?.role === 'admin' ? `(₹${Number(m.rate).toFixed(2)}/${m.unit})` : ''}
               </option>
             ))}
             {!formData.companyId && <option value="" disabled>Select a company first</option>}

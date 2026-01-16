@@ -28,9 +28,16 @@ class InwardController {
         sortOrder,
       });
 
+      const role = req.user?.role;
+      const entries = result.entries.map(entry => {
+        if (role === 'admin') return entry;
+        const { rate, ...rest } = entry;
+        return rest;
+      });
+
       res.status(200).json({
         success: true,
-        data: result.entries,
+        data: entries,
         pagination: result.pagination,
         message: 'Inward entries retrieved successfully',
       });
@@ -47,6 +54,11 @@ class InwardController {
     try {
       const { id } = req.params;
       const entry = await inwardService.getEntryById(id);
+
+      const role = req.user?.role;
+      if (role !== 'admin' && entry) {
+        delete entry.rate;
+      }
 
       res.status(200).json({
         success: true,
@@ -68,6 +80,11 @@ class InwardController {
       const entry = await inwardService.createEntry(entryData);
 
       logger.info(`Inward entry created: ${entry.lotNo} (${entry.id})`);
+
+      const role = req.user?.role;
+      if (role !== 'admin' && entry) {
+        delete entry.rate;
+      }
 
       res.status(201).json({
         success: true,
@@ -101,6 +118,11 @@ class InwardController {
       const entry = await inwardService.updateEntry(id, updateData);
 
       logger.info(`Inward entry updated: ${entry.lotNo} (${entry.id})`);
+
+      const role = req.user?.role;
+      if (role !== 'admin' && entry) {
+        delete entry.rate;
+      }
 
       res.status(200).json({
         success: true,

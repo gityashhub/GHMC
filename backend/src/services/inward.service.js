@@ -222,6 +222,20 @@ class InwardService {
       }
     }
 
+    // Auto-populate rate if not provided
+    let finalRate = rate ? parseFloat(rate) : null;
+    if (finalRate === null) {
+      const companyMaterial = await prisma.companyMaterial.findFirst({
+        where: {
+          companyId,
+          materialName: wasteName.trim(),
+        },
+      });
+      if (companyMaterial) {
+        finalRate = companyMaterial.rate;
+      }
+    }
+
     // Create entry
     const entry = await prisma.inwardEntry.create({
       data: {
@@ -232,7 +246,7 @@ class InwardService {
         manifestNo: manifestNo.trim(),
         vehicleNo: vehicleNo?.trim() || null,
         wasteName: wasteName.trim(),
-        rate: rate ? parseFloat(rate) : null,
+        rate: finalRate,
         category: category?.trim() || null,
         quantity: parseFloat(quantity),
         unit: unit.trim(),
@@ -282,7 +296,19 @@ class InwardService {
         ...(updateData.manifestNo !== undefined && { manifestNo: updateData.manifestNo.trim() }),
         ...(updateData.vehicleNo !== undefined && { vehicleNo: updateData.vehicleNo?.trim() || null }),
         ...(updateData.wasteName !== undefined && { wasteName: updateData.wasteName.trim() }),
-        ...(updateData.rate !== undefined && { rate: updateData.rate ? parseFloat(updateData.rate) : null }),
+        ...(updateData.rate !== undefined ? { rate: updateData.rate ? parseFloat(updateData.rate) : null } : (
+          (updateData.wasteName !== undefined || updateData.companyId !== undefined) ? {
+            rate: await (async () => {
+              const currentEntry = await prisma.inwardEntry.findUnique({ where: { id: entryId } });
+              const cid = updateData.companyId || currentEntry.companyId;
+              const wn = updateData.wasteName || currentEntry.wasteName;
+              const cm = await prisma.companyMaterial.findFirst({
+                where: { companyId: cid, materialName: wn.trim() }
+              });
+              return cm ? cm.rate : currentEntry.rate;
+            })()
+          } : {}
+        )),
         ...(updateData.category !== undefined && { category: updateData.category?.trim() || null }),
         ...(updateData.quantity !== undefined && { quantity: parseFloat(updateData.quantity) }),
         ...(updateData.unit !== undefined && { unit: updateData.unit.trim() }),

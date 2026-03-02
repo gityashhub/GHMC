@@ -330,6 +330,7 @@ export default function Inward() {
     { key: "quantity", header: "Quantity", render: (e: InwardEntry) => `${e.quantity} ${e.unit}` },
     { key: "remarks", header: "Remarks", render: (e: InwardEntry) => <span className="text-muted-foreground italic text-xs truncate max-w-[150px]" title={e.remarks || ''}>{e.remarks || '-'}</span> },
     ...(['admin', 'superadmin'].includes(user?.role || '') ? [
+      { key: "invoiceNo", header: "Invoice No.", render: (e: InwardEntry) => e.invoice?.invoiceNo || "-" },
       {
         key: "amount",
         header: "Amount",
@@ -350,7 +351,6 @@ export default function Inward() {
           return `₹${entrySubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
       },
-      { key: "invoiceNo", header: "Invoice No.", render: (e: InwardEntry) => e.invoice?.invoiceNo || "-" },
       {
         key: "gstAmount",
         header: "GST Amount",
@@ -810,11 +810,11 @@ export default function Inward() {
               { key: "vehicleCapacity", header: "Vehicle Capacity", render: (m: InwardMaterial) => m.vehicleCapacity || '-' },
               ...(user?.role === 'admin' || user?.role === 'superadmin' ? [
                 { key: "rate", header: "Rate", render: (m: InwardMaterial) => (m.rate !== null && m.rate !== undefined) ? `₹${Number(m.rate).toFixed(2)}` : '-' },
+                { key: "invoiceNo", header: "Invoice No.", render: (m: InwardMaterial) => m.invoiceNo || '-' },
                 { key: "amount", header: "Amount", render: (m: InwardMaterial) => (m.amount !== null && m.amount !== undefined) ? `₹${Number(m.amount).toFixed(2)}` : '-' },
                 { key: "detCharges", header: "Det. Charges", render: (m: InwardMaterial) => (m.detCharges !== null && m.detCharges !== undefined) ? `₹${Number(m.detCharges).toFixed(2)}` : '-' },
                 { key: "gst", header: "GST", render: (m: InwardMaterial) => (m.gst !== null && m.gst !== undefined) ? `₹${Number(m.gst).toFixed(2)}` : '-' },
                 { key: "grossAmount", header: "Gross Amount", render: (m: InwardMaterial) => (m.grossAmount !== null && m.grossAmount !== undefined) ? `₹${Number(m.grossAmount).toFixed(2)}` : '-' },
-                { key: "invoiceNo", header: "Invoice No.", render: (m: InwardMaterial) => m.invoiceNo || '-' },
                 { key: "paidOn", header: "Paid On", render: (m: InwardMaterial) => m.paidOn ? format(new Date(m.paidOn), 'dd MMM yyyy') : '-' },
               ] : []),
               {

@@ -301,9 +301,23 @@ export default function Inward() {
       {
         key: "rate",
         header: "Rate",
-        render: (e: InwardEntry) => e.rate
-          ? `₹${Number(e.rate).toFixed(2)}/${e.unit}`
-          : <span className="text-[10px] text-amber-500 font-medium uppercase tracking-tight">Rate not defined</span>
+        render: (e: InwardEntry) => {
+          const entryRate = e.rate;
+          let displayRate = entryRate ? Number(entryRate) : null;
+
+          if (!displayRate && (e.company as any)?.materials) {
+            const material = (e.company as any).materials.find((m: any) =>
+              m.materialName.trim().toLowerCase() === (e.wasteName || '').trim().toLowerCase()
+            );
+            if (material?.rate) {
+              displayRate = Number(material.rate);
+            }
+          }
+
+          return displayRate
+            ? `₹${displayRate.toFixed(2)}/${e.unit}`
+            : <span className="text-[10px] text-amber-500 font-medium uppercase tracking-tight">Rate not defined</span>
+        }
       },
     ] : []),
     {

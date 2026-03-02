@@ -86,7 +86,11 @@ class InwardService {
         take,
         orderBy: { [sortBy]: sortOrder },
         include: {
-          company: true,
+          company: {
+            include: {
+              materials: true
+            }
+          },
           invoice: {
             include: {
               invoiceMaterials: true,

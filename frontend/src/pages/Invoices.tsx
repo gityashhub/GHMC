@@ -272,7 +272,11 @@ export default function Invoices() {
     {
       key: "subtotal",
       header: "Subtotal",
-      render: (invoice: Invoice) => `₹${Number(invoice.subtotal).toLocaleString()}`,
+      render: (invoice: Invoice) => {
+        const subtotal = Number(invoice.subtotal || 0);
+        const additionalCharges = Number(invoice.additionalCharges || 0);
+        return `₹${(subtotal + additionalCharges).toLocaleString()}`;
+      },
     },
     {
       key: "gst",
@@ -410,7 +414,11 @@ export default function Invoices() {
 
                     return Array.from(manifests).join(', ') || '-';
                   },
-                  subtotal: (value) => formatCurrencyForExport(value),
+                  subtotal: (value, item: Invoice) => {
+                    const subtotal = Number(value || 0);
+                    const additionalCharges = Number(item.additionalCharges || 0);
+                    return formatCurrencyForExport(subtotal + additionalCharges);
+                  },
                   gst: (_, item: Invoice) => {
                     const sum = (Number(item.cgst) || 0) + (Number(item.sgst) || 0);
                     return formatCurrencyForExport(sum);
@@ -662,8 +670,12 @@ function InvoiceDetails({
       <hr className="border-border" />
       <div className="space-y-2">
         <div className="flex justify-between">
-          <p className="text-sm text-muted-foreground">Subtotal</p>
+          <p className="text-sm text-muted-foreground">Total</p>
           <p className="font-medium">₹{Number(invoice.subtotal).toLocaleString()}</p>
+        </div>
+        <div className="flex justify-between pt-1 border-t border-border/50">
+          <p className="text-sm font-medium">Subtotal</p>
+          <p className="font-semibold">₹{(Number(invoice.subtotal) + Number(invoice.additionalCharges || 0)).toLocaleString()}</p>
         </div>
         {(Number(invoice.cgst) > 0 || Number(invoice.sgst) > 0) && (
           <>

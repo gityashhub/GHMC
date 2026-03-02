@@ -89,8 +89,9 @@ class InwardService {
           company: true,
           invoice: {
             include: {
+              invoiceMaterials: true,
               _count: {
-                select: { invoiceMaterials: true }
+                select: { inwardEntries: true }
               }
             }
           },
@@ -222,7 +223,11 @@ class InwardService {
       // Auto-populate rate from company material if not provided
       let finalRate = rate;
       if (!finalRate || finalRate === null || finalRate === undefined) {
-        const material = company.materials.find(m => m.materialName === wasteName);
+        // Find material with case-insensitive and trimmed comparison
+        const searchName = wasteName.trim().toLowerCase();
+        const material = (company.materials || []).find(m =>
+          m.materialName && m.materialName.trim().toLowerCase() === searchName
+        );
         if (material && material.rate) {
           finalRate = material.rate;
         }

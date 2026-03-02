@@ -320,46 +320,55 @@ export default function Inward() {
         key: "amount",
         header: "Amount",
         render: (e: InwardEntry) => {
-          const quantity = Number(e.quantity) || 0;
-          const rate = Number(e.rate) || 0;
-          if (!e.rate) return <span className="text-[10px] text-amber-500 font-medium">PENDING</span>;
-          const amount = quantity * rate;
-          return `₹${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          if (!e.invoice) return "-";
+
+          // @ts-ignore - invoiceMaterials included from backend
+          const materialsOnInv = e.invoice.invoiceMaterials || [];
+          const entryBaseInvoiced = materialsOnInv
+            .filter((m: any) => m.manifestNo === e.manifestNo && !m.isAdditionalCharge)
+            .reduce((sum: number, m: any) => sum + (Number(m.amount) || 0), 0);
+
+          // @ts-ignore - _count is injected by backend
+          const entryCount = e.invoice._count?.inwardEntries || 1;
+          const additionalCharges = Number(e.invoice.additionalCharges || 0);
+
+          const entrySubtotal = entryBaseInvoiced + (additionalCharges / entryCount);
+          return `₹${entrySubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
       },
       { key: "invoiceNo", header: "Invoice No.", render: (e: InwardEntry) => e.invoice?.invoiceNo || "-" },
       {
-        key: "grossAmount",
-        header: "Gross Amount",
+        key: "gstAmount",
+        header: "GST Amount",
         render: (e: InwardEntry) => {
-          const quantity = Number(e.quantity) || 0;
-          const rate = Number(e.rate) || 0;
-          const baseAmount = quantity * rate;
-
-          if (!e.invoice) {
-            return `₹${baseAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-          }
-
-          const invSubtotal = Number(e.invoice.subtotal) || 0;
-          const invGrandTotal = Number(e.invoice.grandTotal) || 0;
+          if (!e.invoice) return "-";
 
           // @ts-ignore - _count is injected by backend
-          const itemCount = e.invoice._count?.invoiceMaterials || 0;
+          const entryCount = e.invoice._count?.inwardEntries || 1;
+          const totalGST = (Number(e.invoice.cgst) || 0) + (Number(e.invoice.sgst) || 0);
+          const entryGST = totalGST / entryCount;
 
-          let entryGross = baseAmount;
+          return `₹${entryGST.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+      },
+      {
+        key: "grandTotal",
+        header: "Grand Total",
+        render: (e: InwardEntry) => {
+          if (!e.invoice) return "-";
 
-          if (itemCount > 0) {
-            // EQUAL SPLIT LOGIC
-            // Tax + Charges = GrandTotal - Subtotal
-            const totalTaxAndCharges = invGrandTotal - invSubtotal;
-            if (totalTaxAndCharges > 0) {
-              const sharePerItem = totalTaxAndCharges / itemCount;
-              entryGross = baseAmount + sharePerItem;
-            }
-          } else if (invSubtotal > 0 && invGrandTotal > 0) {
-            // Fallback if count is missing (legacy/error case)
-            entryGross = baseAmount * (invGrandTotal / invSubtotal);
-          }
+          // @ts-ignore - invoiceMaterials included from backend
+          const materialsOnInv = e.invoice.invoiceMaterials || [];
+          const entryBaseInvoiced = materialsOnInv
+            .filter((m: any) => m.manifestNo === e.manifestNo && !m.isAdditionalCharge)
+            .reduce((sum: number, m: any) => sum + (Number(m.amount) || 0), 0);
+
+          // @ts-ignore - _count is injected by backend
+          const entryCount = e.invoice._count?.inwardEntries || 1;
+          const additionalCharges = Number(e.invoice.additionalCharges || 0);
+          const totalGST = (Number(e.invoice.cgst) || 0) + (Number(e.invoice.sgst) || 0);
+
+          const entryGross = entryBaseInvoiced + (additionalCharges / entryCount) + (totalGST / entryCount);
 
           return `₹${entryGross.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
@@ -370,31 +379,24 @@ export default function Inward() {
         render: (e: InwardEntry) => {
           if (!e.invoice) return "-";
 
-          const quantity = Number(e.quantity) || 0;
-          const rate = Number(e.rate) || 0;
-          const baseAmount = quantity * rate;
-          const invSubtotal = Number(e.invoice.subtotal) || 0;
           const invGrandTotal = Number(e.invoice.grandTotal) || 0;
           const invPaymentReceived = Number(e.invoice.paymentReceived) || 0;
 
           // If no payment received on invoice, show nothing as requested
           if (invPaymentReceived <= 0) return "-";
 
-          // Calculate Entry Gross Amount using EQUAL SPLIT logic (same as Gross Amount column)
-          // @ts-ignore - _count is injected by backend
-          const itemCount = e.invoice._count?.invoiceMaterials || 0;
-          let entryGross = baseAmount;
+          // @ts-ignore - invoiceMaterials included from backend
+          const materialsOnInv = e.invoice.invoiceMaterials || [];
+          const entryBaseInvoiced = materialsOnInv
+            .filter((m: any) => m.manifestNo === e.manifestNo && !m.isAdditionalCharge)
+            .reduce((sum: number, m: any) => sum + (Number(m.amount) || 0), 0);
 
-          if (itemCount > 0) {
-            const totalTaxAndCharges = invGrandTotal - invSubtotal;
-            if (totalTaxAndCharges > 0) {
-              const sharePerItem = totalTaxAndCharges / itemCount;
-              entryGross = baseAmount + sharePerItem;
-            }
-          } else if (invSubtotal > 0 && invGrandTotal > 0) {
-            // Fallback
-            entryGross = baseAmount * (invGrandTotal / invSubtotal);
-          }
+          // @ts-ignore - _count is injected by backend
+          const entryCount = e.invoice._count?.inwardEntries || 1;
+
+          const additionalCharges = Number(e.invoice.additionalCharges || 0);
+          const totalGST = (Number(e.invoice.cgst) || 0) + (Number(e.invoice.sgst) || 0);
+          const entryGross = entryBaseInvoiced + (additionalCharges / entryCount) + (totalGST / entryCount);
 
           // Calculate proportional payment for this specific entry based on Invoice's payment status
           const paymentRatio = invGrandTotal > 0 ? (invPaymentReceived / invGrandTotal) : 0;
@@ -528,9 +530,11 @@ export default function Inward() {
                         { key: 'category', header: 'Category' },
                         { key: 'quantity', header: 'Quantity' },
                         { key: 'remarks', header: 'Remarks' },
+                        { key: 'amountPortion', header: 'Amount' },
                         { key: 'invoiceNo', header: 'Invoice No.' },
                         ...(user?.role === 'admin' || user?.role === 'superadmin' ? [
-                          { key: 'calculatedAmount', header: 'Gross Amount' },
+                          { key: 'gstPortion', header: 'GST Amount' },
+                          { key: 'grandTotalPortion', header: 'Grand Total' },
                           { key: 'allocatedPayment', header: 'Payment Received' },
                           { key: 'paymentReceivedOn', header: 'Payment Received On' },
                           { key: 'status', header: 'Status' },
@@ -550,23 +554,58 @@ export default function Inward() {
                         },
                         company: (value: any) => value?.name || '',
                         rate: (value: any) => formatCurrencyForExport(value),
+                        amountPortion: (_: any, item: any) => {
+                          if (!item.invoice) return '';
+                          // @ts-ignore
+                          const materialsOnInv = item.invoice.invoiceMaterials || [];
+                          const entryBaseInvoiced = materialsOnInv
+                            .filter((m: any) => m.manifestNo === item.manifestNo && !m.isAdditionalCharge)
+                            .reduce((sum: number, m: any) => sum + (Number(m.amount) || 0), 0);
+                          // @ts-ignore
+                          const entryCount = item.invoice._count?.inwardEntries || 1;
+                          const addChargesShare = Number(item.invoice.additionalCharges || 0) / entryCount;
+                          return formatCurrencyForExport(entryBaseInvoiced + addChargesShare);
+                        },
                         invoiceNo: (_: any, item: any) => item.invoice?.invoiceNo || '',
-                        calculatedAmount: (_: any, item: any) => {
-                          const rate = Number(item.rate) || 0;
-                          const qty = Number(item.quantity) || 0;
-                          return formatCurrencyForExport(rate * qty);
+                        gstPortion: (_: any, item: any) => {
+                          if (!item.invoice) return '';
+                          // @ts-ignore
+                          const entryCount = item.invoice._count?.inwardEntries || 1;
+                          const totalGST = (Number(item.invoice.cgst) || 0) + (Number(item.invoice.sgst) || 0);
+                          return formatCurrencyForExport(totalGST / entryCount);
+                        },
+                        grandTotalPortion: (_: any, item: any) => {
+                          if (!item.invoice) return '';
+                          // @ts-ignore
+                          const materialsOnInv = item.invoice.invoiceMaterials || [];
+                          const entryBaseInvoiced = materialsOnInv
+                            .filter((m: any) => m.manifestNo === item.manifestNo && !m.isAdditionalCharge)
+                            .reduce((sum: number, m: any) => sum + (Number(m.amount) || 0), 0);
+                          // @ts-ignore
+                          const entryCount = item.invoice._count?.inwardEntries || 1;
+                          const totalGST = (Number(item.invoice.cgst) || 0) + (Number(item.invoice.sgst) || 0);
+                          const addCharges = Number(item.invoice.additionalCharges || 0);
+                          const entryGross = entryBaseInvoiced + (addCharges / entryCount) + (totalGST / entryCount);
+                          return formatCurrencyForExport(entryGross);
                         },
                         allocatedPayment: (_: any, item: any) => {
-                          const rate = Number(item.rate) || 0;
-                          const qty = Number(item.quantity) || 0;
-                          const entryAmount = rate * qty;
+                          if (!item.invoice) return '';
+                          // @ts-ignore
+                          const materialsOnInv = item.invoice.invoiceMaterials || [];
+                          const entryBaseInvoiced = materialsOnInv
+                            .filter((m: any) => m.manifestNo === item.manifestNo && !m.isAdditionalCharge)
+                            .reduce((sum: number, m: any) => sum + (Number(m.amount) || 0), 0);
+                          // @ts-ignore
+                          const entryCount = item.invoice._count?.inwardEntries || 1;
+                          const totalGST = (Number(item.invoice.cgst) || 0) + (Number(item.invoice.sgst) || 0);
+                          const addCharges = Number(item.invoice.additionalCharges || 0);
+                          const entryGross = entryBaseInvoiced + (addCharges / entryCount) + (totalGST / entryCount);
+
                           const grandTotal = Number(item.invoice?.grandTotal) || 0;
                           const totalReceived = Number(item.invoice?.paymentReceived) || 0;
 
                           if (!grandTotal || grandTotal === 0) return formatCurrencyForExport(0);
-
-                          // Calculate proportional payment allocated to this entry's base amount
-                          const allocated = (entryAmount / grandTotal) * totalReceived;
+                          const allocated = (entryGross / grandTotal) * totalReceived;
                           return formatCurrencyForExport(allocated);
                         },
                         paymentReceivedOn: (_: any, item: any) => {

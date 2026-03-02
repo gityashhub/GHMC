@@ -260,10 +260,14 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   // Add empty rows to fill space if needed, or just let autoTable handle it.
 
   // Calculate totals
-  const subTotal = invoiceData.subTotal;
-  const cgst = invoiceData.cgst;
-  const sgst = invoiceData.sgst;
-  const grandTotal = invoiceData.grandTotal;
+  const baseSubTotal = Number(invoiceData.subTotal || 0);
+  const additionalCharges = Number(invoiceData.additionalCharges || 0);
+  const subTotal = baseSubTotal + additionalCharges;
+
+  const cgst = Number(invoiceData.cgst || 0);
+  const sgst = Number(invoiceData.sgst || 0);
+  // Re-calculate grand total to ensure it matches the subtotal + taxes exactly including rounding
+  const grandTotal = subTotal + Math.round(cgst) + Math.round(sgst);
 
   autoTable(doc, {
     startY: tableStartY,
@@ -306,7 +310,13 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   doc.rect(10, finalY, 190, 6);
   doc.setFont('helvetica', 'bold');
   doc.text('Sub Total', 98, finalY + 4, { align: 'right' });
-  doc.text(totalQuantity.toLocaleString('en-IN'), 130, finalY + 4, { align: 'center' });
+
+  // Total quantity calculation needs to include additional charges quantity if it's there
+  const addChargesQuantity = Number(invoiceData.additionalChargesQuantity || 0);
+  const addChargesListQuantity = (invoiceData.additionalChargesList || []).reduce((sum: number, c: any) => sum + (Number(c.quantity) || 0), 0);
+  const finalTotalQuantity = totalQuantity + (addChargesListQuantity || addChargesQuantity);
+
+  doc.text(finalTotalQuantity.toLocaleString('en-IN'), 130, finalY + 4, { align: 'center' });
   doc.text(Number(subTotal).toLocaleString('en-IN'), 198, finalY + 4, { align: 'right' });
   // Vertical lines through Sub Total row
   doc.line(25, finalY, 25, finalY + 6);
@@ -356,9 +366,7 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   doc.rect(10, finalY, 190, 7);
   doc.setFont('helvetica', 'bold');
   doc.text('Grand Total', 98, finalY + 5, { align: 'right' });
-  // Final Grand Total is recalculated based on rounded taxes to maintain document integrity
-  const roundedGrandTotal = Number(subTotal) + Math.round(Number(cgst)) + Math.round(Number(sgst));
-  doc.text(roundedGrandTotal.toLocaleString('en-IN'), 198, finalY + 5, { align: 'right' });
+  doc.text(grandTotal.toLocaleString('en-IN'), 198, finalY + 5, { align: 'right' });
   // Vertical lines through Grand Total row
   doc.line(25, finalY, 25, finalY + 7);
   doc.line(100, finalY, 100, finalY + 7);
@@ -373,7 +381,7 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   doc.setFont('helvetica', 'bold');
   doc.text('In Words: ', 12, finalY + 5);
   doc.setFont('helvetica', 'normal');
-  doc.text(`${numberToWords(Math.round(roundedGrandTotal))} Only`, 35, finalY + 5);
+  doc.text(`${numberToWords(Math.round(grandTotal))} Only`, 35, finalY + 5);
   finalY += 8;
 
   // --- Terms & Conditions ---

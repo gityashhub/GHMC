@@ -27,9 +27,13 @@ export interface InwardEntry {
     invoiceNo: string;
     grandTotal: number;
     subtotal: number;
+    cgst: number | null;
+    sgst: number | null;
+    additionalCharges: number | null;
     paymentReceived: number;
     paymentReceivedOn: string | null;
     status: "paid" | "partial" | "pending";
+    invoiceMaterials?: any[];
   };
   inwardMaterials?: InwardMaterial[];
   createdAt: string;

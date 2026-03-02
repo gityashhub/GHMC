@@ -189,13 +189,21 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
           inwardEntryIds: preselectedEntryIds,
           materials: entries.map(entry => {
             const normalizedUnit = normalizeUnit(entry.unit);
+            const entryCompanyId = entry.companyId;
+            const companyMaterials = (companiesData?.companies || []).find(c => c.id === entryCompanyId)?.materials || [];
+            const materialFromCompany = companyMaterials.find(m =>
+              m.materialName.trim().toLowerCase() === (entry.wasteName || '').trim().toLowerCase()
+            );
+
+            const entryRate = entry.rate ? Number(entry.rate) : (materialFromCompany?.rate ? Number(materialFromCompany.rate) : 0);
+
             return {
               materialName: entry.wasteName,
-              rate: entry.rate ? Number(entry.rate) : 0,
+              rate: entryRate,
               unit: normalizedUnit,
               baseUnit: normalizedUnit, // Very important: keep track of what unit the rate is for
               quantity: Number(entry.quantity),
-              amount: Number((Number(entry.quantity) * (entry.rate ? Number(entry.rate) : 0)).toFixed(2)),
+              amount: Number((Number(entry.quantity) * entryRate).toFixed(2)),
               manifestNo: entry.manifestNo,
               description: '',
             };
@@ -205,7 +213,7 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
         setHasPopulatedInitialData(true);
       }
     }
-  }, [preselectedEntryIds, inwardEntriesData, hasPopulatedInitialData]);
+  }, [preselectedEntryIds, inwardEntriesData, companiesData, hasPopulatedInitialData]);
 
   // Auto-populate GST rates from settings
   useEffect(() => {
@@ -761,13 +769,20 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
                             newEntryIds.push(entry.id);
                             // Add material from entry
                             const normalizedUnit = normalizeUnit(entry.unit);
+                            const currentCompany = companies.find(c => c.id === formData.companyId);
+                            const materialFromCompany = (currentCompany?.materials || []).find(m =>
+                              m.materialName.trim().toLowerCase() === (entry.wasteName || '').trim().toLowerCase()
+                            );
+
+                            const entryRate = entry.rate ? Number(entry.rate) : (materialFromCompany?.rate ? Number(materialFromCompany.rate) : 0);
+
                             newMaterials.push({
                               materialName: entry.wasteName,
-                              rate: entry.rate ? Number(entry.rate) : 0,
+                              rate: entryRate,
                               unit: normalizedUnit,
                               baseUnit: normalizedUnit, // Store normalized unit as baseUnit
                               quantity: Number(entry.quantity),
-                              amount: (Number(entry.quantity) * (entry.rate ? Number(entry.rate) : 0)),
+                              amount: (Number(entry.quantity) * entryRate),
                               manifestNo: entry.manifestNo,
                               description: '',
                             });
@@ -980,17 +995,13 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
           {/* Billing Summary Section (Left) */}
           <div className="col-span-12 md:col-span-3 bg-muted/30 p-3 rounded-lg space-y-3 text-sm h-fit">
             <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Subtotal</span>
+              <span className="text-muted-foreground">Total</span>
               <span className="font-medium">₹{subtotal.toFixed(2)}</span>
             </div>
-            {formData.additionalChargesList.map((charge, idx) => (
-              <div key={idx} className="flex justify-between items-center">
-                <span className="text-muted-foreground truncate max-w-[100px]" title={charge.description}>
-                  {charge.description || 'Addl. Charge'}
-                </span>
-                <span className="font-medium">₹{Number(charge.amount || 0).toFixed(2)}</span>
-              </div>
-            ))}
+            <div className="flex justify-between items-center pt-1 border-t border-border/50">
+              <span className="text-foreground font-medium">Subtotal</span>
+              <span className="font-semibold text-foreground">₹{baseForTax.toFixed(2)}</span>
+            </div>
             <div className="flex gap-2">
               <div className="flex-1">
                 <label className="text-[10px] text-muted-foreground block">CGST %</label>

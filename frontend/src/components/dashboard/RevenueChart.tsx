@@ -7,6 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { formatCurrency } from "@/utils/formatCurrency";
 
 const data = [
   { month: "Jan", revenue: 45000, inward: 120, outward: 95 },
@@ -58,7 +59,7 @@ export function RevenueChart() {
                 borderRadius: "8px",
                 color: "hsl(210, 40%, 98%)",
               }}
-              formatter={(value: number) => [`₹${value.toLocaleString()}`, "Revenue"]}
+              formatter={(value: number) => [`₹${formatCurrency(value)}`, "Revenue"]}
             />
             <Area
               type="monotone"

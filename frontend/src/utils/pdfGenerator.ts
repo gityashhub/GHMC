@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
+import { formatCurrency } from './formatCurrency';
 
 // Helper to convert number to words (Indian numbering system)
 const numberToWords = (num: number): string => {
@@ -178,55 +179,73 @@ export const generateInvoicePDF = async (invoiceData: any) => {
 
   // --- Item Table Body ---
   const tableBody: any[] = [];
+  const items = invoiceData.items || [];
+  const hasManifests = items.some((m: any) => m.manifestNo);
+  let nextSrNo = 1;
 
-  // 1. Processing Charges Header
-  tableBody.push([
-    { content: '1', styles: { fontStyle: 'bold', halign: 'center' } },
-    { content: 'Processing charges', styles: { fontStyle: 'bold' } },
-    '', '', '', '', ''
-  ]);
-
-  // General Notes as Sub-header
-  if (invoiceData.description) {
+  if (hasManifests) {
+    // 1. Processing Charges Header
     tableBody.push([
-      '',
-      invoiceData.description,
+      { content: String(nextSrNo++), styles: { fontStyle: 'bold', halign: 'center' } },
+      { content: 'Processing charges', styles: { fontStyle: 'bold' } },
       '', '', '', '', ''
     ]);
-  }
 
-  // "Manifest nos." Label
-  tableBody.push([
-    '',
-    'Manifest nos.',
-    '', '', '', '', ''
-  ]);
+    // General Notes as Sub-header
+    if (invoiceData.description) {
+      tableBody.push([
+        '',
+        invoiceData.description,
+        '', '', '', '', ''
+      ]);
+    }
 
-  // Individual Items (Manifests)
-  invoiceData.items.forEach((item: any) => {
-    // Show Manifest No as primary, only show description if specifically provided and distinct
-    const displayDescription = [item.manifestNo, item.description]
-      .filter((v, i, a) => v && a.indexOf(v) === i)
-      .join('\n');
-
+    // "Manifest nos." Label
     tableBody.push([
       '',
-      displayDescription || item.materialName || '',
-      item.hsnCode || '999432',
-      item.quantity ? Number(item.quantity).toLocaleString('en-IN') : '0',
-      item.unit || '',
-      item.rate ? Number(item.rate).toFixed(2) : '0.00',
-      item.amount ? Number(item.amount).toLocaleString('en-IN') : '0'
+      'Manifest nos.',
+      '', '', '', '', ''
     ]);
-  });
 
-  // 2. Additional Charges Section
+    // Individual Items (Manifests)
+    items.forEach((item: any) => {
+      // Show Manifest No as primary, only show description if specifically provided and distinct
+      const displayDescription = [item.manifestNo, item.description]
+        .filter((v, i, a) => v && a.indexOf(v) === i)
+        .join('\n');
+
+      tableBody.push([
+        '',
+        displayDescription || item.materialName || '',
+        item.hsnCode || '999432',
+        item.quantity ? Number(item.quantity).toLocaleString('en-IN') : '0',
+        item.unit || '',
+        item.rate ? formatCurrency(item.rate) : '0.00',
+        item.amount ? formatCurrency(item.amount) : '0'
+      ]);
+    });
+  } else {
+    // MANUAL Mode
+    items.forEach((item: any) => {
+      tableBody.push([
+        { content: String(nextSrNo++), styles: { halign: 'center' } },
+        item.materialName || item.description || 'Processing Charges',
+        item.hsnCode || '',
+        item.quantity ? Number(item.quantity).toLocaleString('en-IN') : '0',
+        item.unit || '',
+        item.rate ? formatCurrency(item.rate) : '0.00',
+        item.amount ? formatCurrency(item.amount) : '0'
+      ]);
+    });
+  }
+
+  // Next Sr. No. for Additional Charges
   const hasAdditionalChargesList = invoiceData.additionalChargesList && invoiceData.additionalChargesList.length > 0;
   const hasTotalAdditionalCharges = invoiceData.additionalCharges && Number(invoiceData.additionalCharges) > 0;
 
   if (hasAdditionalChargesList || hasTotalAdditionalCharges) {
     tableBody.push([
-      { content: '2', styles: { fontStyle: 'bold', halign: 'center' } },
+      { content: String(nextSrNo++), styles: { fontStyle: 'bold', halign: 'center' } },
       { content: 'Additional Charges', styles: { fontStyle: 'bold' } },
       '', '', '', '', ''
     ]);
@@ -239,8 +258,8 @@ export const generateInvoicePDF = async (invoiceData: any) => {
           '',
           charge.quantity ? Number(charge.quantity).toLocaleString('en-IN') : '',
           charge.unit || '',
-          charge.rate ? Number(charge.rate).toFixed(2) : '',
-          Number(charge.amount || 0).toLocaleString('en-IN')
+          charge.rate ? formatCurrency(charge.rate) : '',
+          formatCurrency(charge.amount || 0)
         ]);
       });
     } else if (hasTotalAdditionalCharges) {
@@ -251,8 +270,8 @@ export const generateInvoicePDF = async (invoiceData: any) => {
         '',
         invoiceData.additionalChargesQuantity ? Number(invoiceData.additionalChargesQuantity).toLocaleString('en-IN') : '',
         invoiceData.additionalChargesUnit || '',
-        invoiceData.additionalChargesRate ? Number(invoiceData.additionalChargesRate).toFixed(2) : '',
-        Number(invoiceData.additionalCharges).toLocaleString('en-IN')
+        invoiceData.additionalChargesRate ? formatCurrency(invoiceData.additionalChargesRate) : '',
+        formatCurrency(invoiceData.additionalCharges)
       ]);
     }
   }
@@ -317,7 +336,7 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   const finalTotalQuantity = totalQuantity + (addChargesListQuantity || addChargesQuantity);
 
   doc.text(finalTotalQuantity.toLocaleString('en-IN'), 130, finalY + 4, { align: 'center' });
-  doc.text(Number(subTotal).toLocaleString('en-IN'), 198, finalY + 4, { align: 'right' });
+  doc.text(formatCurrency(subTotal), 198, finalY + 4, { align: 'right' });
   // Vertical lines through Sub Total row
   doc.line(25, finalY, 25, finalY + 6);
   doc.line(100, finalY, 100, finalY + 6);
@@ -334,7 +353,7 @@ export const generateInvoicePDF = async (invoiceData: any) => {
     // Determine Index for CGST/SGST if they exist
     doc.text('2', 17.5, finalY + 4, { align: 'center' });
     doc.text('CGST', 27, finalY + 4);
-    doc.text(Math.round(Number(cgst)).toLocaleString('en-IN'), 198, finalY + 4, { align: 'right' });
+    doc.text(formatCurrency(Math.round(Number(cgst))), 198, finalY + 4, { align: 'right' });
     // Vertical lines through CGST row
     doc.line(25, finalY, 25, finalY + 6);
     doc.line(100, finalY, 100, finalY + 6);
@@ -351,7 +370,7 @@ export const generateInvoicePDF = async (invoiceData: any) => {
     doc.setFont('helvetica', 'normal');
     doc.text(Number(cgst) > 0 ? '3' : '2', 17.5, finalY + 4, { align: 'center' });
     doc.text('SGST', 27, finalY + 4);
-    doc.text(Math.round(Number(sgst)).toLocaleString('en-IN'), 198, finalY + 4, { align: 'right' });
+    doc.text(formatCurrency(Math.round(Number(sgst))), 198, finalY + 4, { align: 'right' });
     // Vertical lines through SGST row
     doc.line(25, finalY, 25, finalY + 6);
     doc.line(100, finalY, 100, finalY + 6);
@@ -366,7 +385,7 @@ export const generateInvoicePDF = async (invoiceData: any) => {
   doc.rect(10, finalY, 190, 7);
   doc.setFont('helvetica', 'bold');
   doc.text('Grand Total', 98, finalY + 5, { align: 'right' });
-  doc.text(grandTotal.toLocaleString('en-IN'), 198, finalY + 5, { align: 'right' });
+  doc.text(formatCurrency(grandTotal), 198, finalY + 5, { align: 'right' });
   // Vertical lines through Grand Total row
   doc.line(25, finalY, 25, finalY + 7);
   doc.line(100, finalY, 100, finalY + 7);

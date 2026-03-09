@@ -16,6 +16,7 @@ import { exportToCSV, formatDateForExport, formatCurrencyForExport } from "@/uti
 import { generateInvoicePDF } from "@/utils/pdfGenerator";
 import { getErrorMessage, logError } from "@/utils/errorHandler";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatCurrency } from "@/utils/formatCurrency";
 
 export default function Invoices() {
   const queryClient = useQueryClient();
@@ -163,7 +164,7 @@ export default function Invoices() {
             description: (m as any).description || '',
             materialName: m.materialName,
             manifestNo: (m as any).manifestNo || '',
-            hsnCode: '999432',
+            hsnCode: (m as any).hsnCode || '999432',
             quantity: m.quantity,
             unit: m.unit,
             rate: m.rate,
@@ -275,7 +276,7 @@ export default function Invoices() {
       render: (invoice: Invoice) => {
         const subtotal = Number(invoice.subtotal || 0);
         const additionalCharges = Number(invoice.additionalCharges || 0);
-        return `₹${(subtotal + additionalCharges).toLocaleString()}`;
+        return `₹${formatCurrency(subtotal + additionalCharges)}`;
       },
     },
     {
@@ -284,21 +285,21 @@ export default function Invoices() {
       render: (invoice: Invoice) => {
         const cgst = Number(invoice.cgst || 0);
         const sgst = Number(invoice.sgst || 0);
-        return <span className="text-muted-foreground">₹{(cgst + sgst).toLocaleString()}</span>;
+        return <span className="text-muted-foreground">₹{formatCurrency(cgst + sgst)}</span>;
       },
     },
     {
       key: "grandTotal",
       header: "Grand Total",
       render: (invoice: Invoice) => (
-        <span className="font-medium text-foreground">₹{Number(invoice.grandTotal).toLocaleString()}</span>
+        <span className="font-medium text-foreground">₹{formatCurrency(invoice.grandTotal)}</span>
       ),
     },
     {
       key: "paymentReceived",
       header: "Received",
       render: (invoice: Invoice) => (
-        <span className="text-success">₹{Number(invoice.paymentReceived).toLocaleString()}</span>
+        <span className="text-success">₹{formatCurrency(invoice.paymentReceived)}</span>
       ),
     },
     {
@@ -447,7 +448,7 @@ export default function Invoices() {
               setIsCreateInvoiceOpen(true);
             }}>
               <Plus className="w-4 h-4 mr-2" />
-              Create Inward Invoice
+              Create Invoice
             </Button>
           )}
         </div>
@@ -462,19 +463,19 @@ export default function Invoices() {
         <div className="glass-card p-4">
           <p className="text-sm text-muted-foreground">Total Inward Amount</p>
           <p className="text-2xl font-bold text-foreground mt-1">
-            ₹{stats.totalInvoiced.toLocaleString()}
+            ₹{formatCurrency(stats.totalInvoiced)}
           </p>
         </div>
         <div className="glass-card p-4">
           <p className="text-sm text-muted-foreground">Total Received</p>
           <p className="text-2xl font-bold text-success mt-1">
-            ₹{stats.totalReceived.toLocaleString()}
+            ₹{formatCurrency(stats.totalReceived)}
           </p>
         </div>
         <div className="glass-card p-4">
           <p className="text-sm text-muted-foreground">Total Pending</p>
           <p className="text-2xl font-bold text-destructive mt-1">
-            ₹{stats.totalPending.toLocaleString()}
+            ₹{formatCurrency(stats.totalPending)}
           </p>
         </div>
       </div>
@@ -651,14 +652,14 @@ function InvoiceDetails({
               <div key={`${m.id}-${index}`} className="flex justify-between items-center p-2 bg-secondary rounded">
                 <div>
                   <p className="font-medium">{m.materialName}</p>
-                  {m.quantity && m.unit && (
-                    <p className="text-xs text-muted-foreground">
-                      {m.quantity} {m.unit}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {m.description && <span>{m.description} | </span>}
+                    {m.hsnCode && <span>HSN: {m.hsnCode} | </span>}
+                    {m.quantity} {m.unit} @ ₹{formatCurrency(m.rate)}
+                  </p>
                 </div>
                 {m.amount && (
-                  <p className="font-medium">₹{Number(m.amount).toLocaleString()}</p>
+                  <p className="font-medium">₹{formatCurrency(m.amount)}</p>
                 )}
               </div>
             ))}
@@ -671,27 +672,27 @@ function InvoiceDetails({
       <div className="space-y-2">
         <div className="flex justify-between">
           <p className="text-sm text-muted-foreground">Total</p>
-          <p className="font-medium">₹{Number(invoice.subtotal).toLocaleString()}</p>
+          <p className="font-medium">₹{formatCurrency(invoice.subtotal)}</p>
         </div>
         <div className="flex justify-between pt-1 border-t border-border/50">
           <p className="text-sm font-medium">Subtotal</p>
-          <p className="font-semibold">₹{(Number(invoice.subtotal) + Number(invoice.additionalCharges || 0)).toLocaleString()}</p>
+          <p className="font-semibold">₹{formatCurrency(Number(invoice.subtotal) + Number(invoice.additionalCharges || 0))}</p>
         </div>
         {(Number(invoice.cgst) > 0 || Number(invoice.sgst) > 0) && (
           <>
             <div className="flex justify-between">
               <p className="text-sm text-muted-foreground">CGST</p>
-              <p className="font-medium">₹{Number(invoice.cgst).toLocaleString()}</p>
+              <p className="font-medium">₹{formatCurrency(invoice.cgst)}</p>
             </div>
             <div className="flex justify-between">
               <p className="text-sm text-muted-foreground">SGST</p>
-              <p className="font-medium">₹{Number(invoice.sgst).toLocaleString()}</p>
+              <p className="font-medium">₹{formatCurrency(invoice.sgst)}</p>
             </div>
           </>
         )}
         <div className="flex justify-between pt-2 border-t border-border">
           <p className="font-medium text-lg">Grand Total</p>
-          <p className="font-bold text-lg">₹{Number(invoice.grandTotal).toLocaleString()}</p>
+          <p className="font-bold text-lg">₹{formatCurrency(invoice.grandTotal)}</p>
         </div>
       </div>
 
@@ -702,7 +703,7 @@ function InvoiceDetails({
           <div>
             <p className="text-sm text-muted-foreground">Payment Received</p>
             <p className="font-medium text-lg text-success">
-              ₹{Number(invoice.paymentReceived).toLocaleString()}
+              ₹{formatCurrency(invoice.paymentReceived)}
             </p>
             {invoice.paymentReceivedOn && (
               <p className="text-xs text-muted-foreground">

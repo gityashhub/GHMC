@@ -1,4 +1,5 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { formatCurrency } from "@/utils/formatCurrency";
 
 const data = [
   { name: "Paid", value: 785000, color: "hsl(142, 76%, 36%)" },
@@ -35,7 +36,7 @@ export function PaymentStatus() {
                 borderRadius: "8px",
                 color: "hsl(210, 40%, 98%)",
               }}
-              formatter={(value: number) => [`₹${value.toLocaleString()}`, ""]}
+              formatter={(value: number) => [`₹${formatCurrency(value)}`, ""]}
             />
             <Legend
               wrapperStyle={{ color: "hsl(210, 40%, 98%)" }}
@@ -46,7 +47,7 @@ export function PaymentStatus() {
       </div>
       <div className="mt-4 text-center">
         <p className="text-sm text-muted-foreground">Total Outstanding</p>
-        <p className="text-2xl font-bold text-foreground">₹{total.toLocaleString()}</p>
+        <p className="text-2xl font-bold text-foreground">₹{formatCurrency(total)}</p>
       </div>
     </div>
   );

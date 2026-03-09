@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { formatCurrency } from "@/utils/formatCurrency";
 
 // Removed unused interfaces if any
 interface Props {
@@ -54,6 +55,7 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
       manifestNo?: string;
       description: string;
       baseUnit?: string;
+      hsnCode?: string;
     }>,
     manifestNos: [] as string[],
     inwardEntryIds: preselectedEntryIds,
@@ -206,6 +208,7 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
               amount: Number((Number(entry.quantity) * entryRate).toFixed(2)),
               manifestNo: entry.manifestNo,
               description: '',
+              hsnCode: '999432',
             };
           }),
           vehicleNo: firstEntry.vehicleNo || prev.vehicleNo,
@@ -442,9 +445,41 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
 
 
   const removeMaterial = (index: number) => {
+    setFormData(prev => {
+      const newMaterials = prev.materials.filter((_, i) => i !== index);
+      // Also update manifestNos if removed item had one
+      const removedItem = prev.materials[index];
+      let newManifestNos = [...prev.manifestNos];
+      if (removedItem.manifestNo) {
+        const stillUsed = newMaterials.some(m => m.manifestNo === removedItem.manifestNo);
+        if (!stillUsed) {
+          newManifestNos = newManifestNos.filter(m => m !== removedItem.manifestNo);
+        }
+      }
+
+      return {
+        ...prev,
+        materials: newMaterials,
+        manifestNos: newManifestNos,
+      };
+    });
+  };
+
+  const addMaterial = () => {
     setFormData(prev => ({
       ...prev,
-      materials: prev.materials.filter((_, i) => i !== index),
+      materials: [
+        ...prev.materials,
+        {
+          materialName: 'Processing charges',
+          rate: 0,
+          unit: 'MT',
+          quantity: 0,
+          amount: 0,
+          description: '',
+          hsnCode: '999432'
+        }
+      ]
     }));
   };
 
@@ -523,6 +558,18 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
             </div>
 
             <div className="space-y-2 max-h-[200px] overflow-y-auto mb-3 pr-1">
+              <label className="flex items-center gap-3 p-2.5 rounded-md border bg-white cursor-pointer hover:border-blue-300 transition-colors">
+                <input
+                  type="radio"
+                  name="existingInvoice"
+                  value="new"
+                  checked={selectedExistingInvoiceId === 'new'}
+                  onChange={() => setSelectedExistingInvoiceId('new')}
+                  className="text-blue-600 focus:ring-blue-500 h-4 w-4"
+                />
+                <div className="text-sm font-medium text-blue-900">Create New Invoice</div>
+              </label>
+
               {existingInvoices.map((inv) => (
                 <label key={inv.id} className="flex items-center justify-between p-2.5 rounded-md border bg-white cursor-pointer hover:border-blue-300 transition-colors">
                   <div className="flex items-center gap-3">
@@ -551,22 +598,10 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
                     </div>
                   </div>
                   <div className="text-sm font-semibold text-blue-900">
-                    ₹{inv.grandTotal.toLocaleString()}
+                    ₹{formatCurrency(inv.grandTotal)}
                   </div>
                 </label>
               ))}
-
-              <label className="flex items-center gap-3 p-2.5 rounded-md border bg-white cursor-pointer hover:border-blue-300 transition-colors">
-                <input
-                  type="radio"
-                  name="existingInvoice"
-                  value="new"
-                  checked={selectedExistingInvoiceId === 'new'}
-                  onChange={() => setSelectedExistingInvoiceId('new')}
-                  className="text-blue-600 focus:ring-blue-500 h-4 w-4"
-                />
-                <div className="text-sm font-medium text-blue-900">Create New Invoice</div>
-              </label>
             </div>
 
             <div className="flex justify-end gap-2">
@@ -785,6 +820,7 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
                               amount: (Number(entry.quantity) * entryRate),
                               manifestNo: entry.manifestNo,
                               description: '',
+                              hsnCode: '999432',
                             });
                             // Add manifest no
                             if (entry.manifestNo && !newManifestNos.includes(entry.manifestNo)) {
@@ -841,65 +877,113 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
           </div>
         )}
 
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-foreground">Invoice Items</label>
+          {type === 'Inward' && !isAppendMode && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={addMaterial}
+            >
+              + Add Item
+            </Button>
+          )}
+        </div>
+
         {formData.materials.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-2">Invoice Items</label>
-            <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-              {formData.materials.map((material, index) => (
-                <div key={index} className="relative grid grid-cols-12 gap-x-2 gap-y-1 p-2 bg-secondary/50 rounded-lg items-center text-sm">
-                  <div className="col-span-4">
-                    <div className="font-medium truncate" title={material.materialName}>{material.materialName}</div>
+          <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+            {formData.materials.map((material, index) => {
+              const isManual = !material.manifestNo;
+              return (
+                <div key={index} className="relative bg-secondary/30 rounded-lg p-3 space-y-3 transition-colors hover:bg-secondary/40 border border-transparent hover:border-border/50">
+                  <div className="grid grid-cols-12 gap-3">
+                    {/* Row 1: Description & HSN */}
+                    <div className="col-span-8">
+                      <label className="block text-[10px] uppercase font-bold text-muted-foreground mb-1">Description of Goods / Service</label>
+                      <input
+                        type="text"
+                        className="h-8 w-full rounded border border-input bg-background/50 px-2 text-xs"
+                        value={material.materialName || ''}
+                        onChange={(e) => updateMaterial(index, 'materialName', e.target.value)}
+                        placeholder="e.g. Processing Charges"
+                      />
+                    </div>
+                    <div className="col-span-4 pr-6">
+                      <label className="block text-[10px] uppercase font-bold text-muted-foreground mb-1">HSN Code</label>
+                      <input
+                        type="text"
+                        className="h-8 w-full rounded border border-input bg-background/50 px-2 text-xs"
+                        value={material.hsnCode || '999432'}
+                        onChange={(e) => updateMaterial(index, 'hsnCode', e.target.value)}
+                        placeholder="HSN Code"
+                      />
+                    </div>
+
+                    {/* Row 2: Qty, Unit, Rate, Amount */}
+                    <div className="col-span-3">
+                      <label className="block text-[10px] uppercase font-bold text-muted-foreground mb-1">Quantity</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="h-8 w-full rounded border border-input bg-background/50 px-2 text-xs text-right font-medium"
+                        value={material.quantity || ''}
+                        onChange={(e) => updateMaterial(index, 'quantity', parseFloat(e.target.value) || 0)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-[10px] uppercase font-bold text-muted-foreground mb-1">Unit</label>
+                      <select
+                        className="h-8 w-full rounded border border-input bg-background px-1 text-xs"
+                        value={normalizeUnit(material.unit)}
+                        onChange={(e) => updateMaterial(index, 'unit', e.target.value)}
+                      >
+                        <option value="MT">MT</option>
+                        <option value="KG">KG</option>
+                        <option value="KL">KL</option>
+                        <option value="Nos">Nos</option>
+                      </select>
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block text-[10px] uppercase font-bold text-muted-foreground mb-1">Rate</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="h-8 w-full rounded border border-input bg-background/50 px-2 text-xs text-right font-medium"
+                        value={material.rate || ''}
+                        onChange={(e) => updateMaterial(index, 'rate', parseFloat(e.target.value) || 0)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                      />
+                    </div>
+                    <div className="col-span-4 flex items-end justify-between">
+                      <div className="flex flex-col flex-1 items-end pr-8">
+                        <label className="block text-[10px] uppercase font-bold text-muted-foreground mb-1">Amount</label>
+                        <span className="h-8 flex items-center text-sm font-bold text-foreground">
+                          ₹{formatCurrency(material.amount || 0)}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="col-span-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="h-8 w-full rounded border border-input bg-background/50 px-2 text-xs text-right"
-                      value={material.quantity || ''}
-                      onChange={(e) => updateMaterial(index, 'quantity', parseFloat(e.target.value) || 0)}
-                      onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                      placeholder="Qty"
-                    />
-                  </div>
-                  <div className="col-span-1">
-                    <select
-                      className="h-8 w-full rounded border border-input bg-background px-1 text-xs"
-                      value={normalizeUnit(material.unit)}
-                      onChange={(e) => updateMaterial(index, 'unit', e.target.value)}
-                    >
-                      <option value="MT">MT</option>
-                      <option value="KG">KG</option>
-                      <option value="KL">KL</option>
-                      <option value="Nos">Nos</option>
-                    </select>
-                  </div>
-                  <div className="col-span-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="h-8 w-full rounded border border-input bg-background/50 px-2 text-xs text-right"
-                      value={material.rate || ''}
-                      onChange={(e) => updateMaterial(index, 'rate', parseFloat(e.target.value) || 0)}
-                      onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                      placeholder="Rate"
-                    />
-                  </div>
-                  <div className="col-span-3 text-right font-medium">
-                    ₹{Number(material.amount || 0).toFixed(2)}
-                  </div>
-                  <div className="col-span-1 text-right absolute right-2 top-2">
-                    <button
-                      type="button"
-                      onClick={() => removeMaterial(index)}
-                      className="text-destructive hover:text-destructive/80 p-1"
-                    >
-                      <span className="sr-only">Remove</span>
-                      &times;
-                    </button>
-                  </div>
+
+                  {/* Remove Button (Top Right) */}
+                  <button
+                    type="button"
+                    onClick={() => removeMaterial(index)}
+                    className="absolute top-2 right-2 text-muted-foreground hover:text-destructive transition-colors p-1"
+                  >
+                    <span className="sr-only">Remove Item</span>
+                    &times;
+                  </button>
+
+                  {!isManual && (
+                    <div className="mt-1 px-2 py-0.5 rounded-full bg-blue-100/50 text-blue-700 text-[10px] font-medium w-fit border border-blue-200">
+                      Linked: {material.manifestNo}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         )}
 
@@ -938,20 +1022,6 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
           </div>
         )}
 
-        {formData.materials.length === 0 && (
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Subtotal *</label>
-            <input
-              type="number"
-              step="0.01"
-              className="input-field w-full"
-              value={formData.subtotal || ''}
-              onChange={(e) => setFormData({ ...formData, subtotal: parseFloat(e.target.value) || 0 })}
-              onWheel={(e) => (e.target as HTMLInputElement).blur()}
-              required={formData.materials.length === 0}
-            />
-          </div>
-        )}
 
         <div className="grid grid-cols-12 gap-4">
           <div className="col-span-12 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -996,26 +1066,27 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
           <div className="col-span-12 md:col-span-3 bg-muted/30 p-3 rounded-lg space-y-3 text-sm h-fit">
             <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Total</span>
-              <span className="font-medium">₹{subtotal.toFixed(2)}</span>
+              <span className="font-medium">₹{formatCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between items-center pt-1 border-t border-border/50">
               <span className="text-foreground font-medium">Subtotal</span>
-              <span className="font-semibold text-foreground">₹{baseForTax.toFixed(2)}</span>
+              <span className="font-semibold text-foreground">₹{formatCurrency(baseForTax)}</span>
             </div>
             <div className="flex gap-2">
               <div className="flex-1">
                 <label className="text-[10px] text-muted-foreground block">CGST %</label>
                 <input
                   type="number"
-                  className="h-7 w-full rounded border border-input px-1 text-right text-xs bg-muted"
-                  value={formData.applyGst ? String(formData.cgstRate || 9) : "0"}
+                  step="0.01"
+                  className="h-7 w-full rounded border border-input px-1 text-right text-xs bg-background focus:ring-1 focus:ring-primary"
+                  value={formData.cgstRate !== undefined ? formData.cgstRate : 9}
+                  onChange={(e) => setFormData(prev => ({ ...prev, cgstRate: parseFloat(e.target.value) || 0 }))}
                   onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                  readOnly
-                  disabled
+                  disabled={!formData.applyGst}
                 />
               </div>
               <div className="text-right flex flex-col justify-end">
-                <span className="text-xs">₹{cgst.toFixed(2)}</span>
+                <span className="text-xs">₹{formatCurrency(cgst)}</span>
               </div>
             </div>
             <div className="flex gap-2">
@@ -1023,15 +1094,16 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
                 <label className="text-[10px] text-muted-foreground block">SGST %</label>
                 <input
                   type="number"
-                  className="h-7 w-full rounded border border-input px-1 text-right text-xs bg-muted"
-                  value={formData.applyGst ? String(formData.sgstRate || 9) : "0"}
+                  step="0.01"
+                  className="h-7 w-full rounded border border-input px-1 text-right text-xs bg-background focus:ring-1 focus:ring-primary"
+                  value={formData.sgstRate !== undefined ? formData.sgstRate : 9}
+                  onChange={(e) => setFormData(prev => ({ ...prev, sgstRate: parseFloat(e.target.value) || 0 }))}
                   onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                  readOnly
-                  disabled
+                  disabled={!formData.applyGst}
                 />
               </div>
               <div className="text-right flex flex-col justify-end">
-                <span className="text-xs">₹{sgst.toFixed(2)}</span>
+                <span className="text-xs">₹{formatCurrency(sgst)}</span>
               </div>
             </div>
 
@@ -1049,7 +1121,7 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
             </div>
             <div className="flex justify-between border-t border-border pt-2 mt-2 mb-2">
               <span className="font-semibold">Total</span>
-              <span className="font-bold">₹{grandTotal.toFixed(2)}</span>
+              <span className="font-bold">₹{formatCurrency(grandTotal)}</span>
             </div>
           </div>
 
@@ -1114,7 +1186,7 @@ export default function CreateInvoiceModal({ isOpen, onClose, type, preselectedE
                     <div className="col-span-3">
                       <label className="block text-[10px] uppercase font-bold text-muted-foreground mb-1">Amount</label>
                       <div className="h-8 flex items-center justify-between px-2 bg-muted/30 rounded border border-transparent text-xs font-semibold">
-                        <span>₹{Number(charge.amount || 0).toFixed(2)}</span>
+                        <span>₹{formatCurrency(charge.amount || 0)}</span>
                         <button
                           type="button"
                           onClick={() => removeAdditionalCharge(index)}

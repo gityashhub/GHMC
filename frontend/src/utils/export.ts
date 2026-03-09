@@ -95,6 +95,9 @@ export function formatCurrencyForExport(amount: number | string | null | undefin
   if (amount === null || amount === undefined) return '';
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
   if (isNaN(num)) return '';
-  return num.toFixed(2);
+  return num.toLocaleString('en-IN', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
 }
 

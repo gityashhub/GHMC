@@ -15,6 +15,7 @@ import { isValidEmail, isValidPhone, isValidGST, formatPhoneNumber, formatGSTNum
 import { exportToCSV, formatCurrencyForExport } from "@/utils/export";
 import { getErrorMessage, logError } from "@/utils/errorHandler";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatCurrency } from "@/utils/formatCurrency";
 
 // Helper to normalize unit for backend (backend expects 'Kg' not 'KG')
 const normalizeUnitForBackend = (unit: string): 'MT' | 'Kg' | 'KL' => {
@@ -353,7 +354,7 @@ export default function Companies() {
                   <span className="font-medium">{item.materialName}</span>
                   <span className="text-muted-foreground ml-2">
                     {item.rate !== null && item.rate !== undefined
-                      ? `₹${Number(item.rate).toFixed(2)}/${item.unit}`
+                      ? `₹${formatCurrency(item.rate)}/${item.unit}`
                       : <span className="text-xs text-amber-500 font-normal">(Rate not defined)</span>
                     }
                   </span>
@@ -370,14 +371,14 @@ export default function Companies() {
       {
         key: "totalInvoiced",
         header: "Total Invoiced",
-        render: (company: Company) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(company.totalInvoiced || 0),
+        render: (company: Company) => `₹${formatCurrency(company.totalInvoiced || 0)}`,
       },
       {
         key: "totalPaid",
         header: "Total Paid",
         render: (company: Company) => (
           <span className="text-success">
-            {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(company.totalPaid || 0)}
+            ₹{formatCurrency(company.totalPaid || 0)}
           </span>
         ),
       },
@@ -388,7 +389,7 @@ export default function Companies() {
           const pending = company.totalPending || 0;
           return (
             <span className={pending > 0 ? "text-destructive" : "text-success"}>
-              {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(pending)}
+              ₹{formatCurrency(pending)}
             </span>
           );
         },
@@ -494,6 +495,9 @@ export default function Companies() {
                         return String(value);
                       }
                     },
+                    totalInvoiced: (value: any) => formatCurrencyForExport(value),
+                    totalPaid: (value: any) => formatCurrencyForExport(value),
+                    totalPending: (value: any) => formatCurrencyForExport(value),
                   }
                 );
                 toast.dismiss(toastId);
@@ -527,19 +531,19 @@ export default function Companies() {
             <div className="glass-card p-4">
               <p className="text-sm text-muted-foreground">Total Invoiced</p>
               <p className="text-xl md:text-2xl font-bold text-foreground mt-1">
-                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(totalInvoiced)}
+                ₹{formatCurrency(totalInvoiced)}
               </p>
             </div>
             <div className="glass-card p-4">
               <p className="text-sm text-muted-foreground">Total Received</p>
               <p className="text-xl md:text-2xl font-bold text-success mt-1">
-                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(totalPaid)}
+                ₹{formatCurrency(totalPaid)}
               </p>
             </div>
             <div className="glass-card p-4">
               <p className="text-sm text-muted-foreground">Total Pending</p>
               <p className="text-xl md:text-2xl font-bold text-destructive mt-1">
-                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(totalPending)}
+                ₹{formatCurrency(totalPending)}
               </p>
             </div>
           </>
@@ -838,19 +842,19 @@ function CompanyDetails({ id }: { id: string }) {
           <div className="glass-card p-4">
             <p className="text-sm text-muted-foreground">Total Invoiced</p>
             <p className="text-xl font-bold text-foreground mt-1">
-              ₹{(company.totalInvoiced || 0).toLocaleString()}
+              ₹{formatCurrency(company.totalInvoiced || 0)}
             </p>
           </div>
           <div className="glass-card p-4">
             <p className="text-sm text-muted-foreground">Total Paid</p>
             <p className="text-xl font-bold text-success mt-1">
-              ₹{(company.totalPaid || 0).toLocaleString()}
+              ₹{formatCurrency(company.totalPaid || 0)}
             </p>
           </div>
           <div className="glass-card p-4">
             <p className="text-sm text-muted-foreground">Pending Amount</p>
             <p className="text-xl font-bold text-destructive mt-1">
-              ₹{(company.totalPending || 0).toLocaleString()}
+              ₹{formatCurrency(company.totalPending || 0)}
             </p>
           </div>
         </div>
@@ -883,7 +887,7 @@ function CompanyDetails({ id }: { id: string }) {
                 company.materials.map((item, index) => (
                   <div key={`${item.id}-${index}`} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
                     <span className="font-medium text-foreground">{item.materialName}</span>
-                    <span className="text-primary font-semibold">₹{Number(item.rate).toFixed(2)}/{item.unit}</span>
+                    <span className="text-primary font-semibold">₹{formatCurrency(item.rate)}/{item.unit}</span>
                   </div>
                 ))
               ) : (
@@ -918,9 +922,9 @@ function CompanyDetails({ id }: { id: string }) {
                         {format(new Date(inv.date), 'dd MMM yyyy')}
                       </td>
                       <td className="px-4 py-3 font-medium text-foreground">{inv.invoiceNo}</td>
-                      <td className="px-4 py-3 text-right">₹{Number(inv.grandTotal).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right">₹{formatCurrency(inv.grandTotal)}</td>
                       <td className="px-4 py-3 text-right text-success">
-                        ₹{Number(inv.paymentReceived).toLocaleString()}
+                        ₹{formatCurrency(inv.paymentReceived)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <StatusBadge status={inv.status as any} />

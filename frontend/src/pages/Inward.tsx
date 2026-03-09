@@ -20,6 +20,7 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { isNotFutureDate, isValidManifestNumber, isPositiveNumber, roundToTwoDecimals } from "@/utils/validation";
 import { exportToCSV, formatDateForExport, formatCurrencyForExport } from "@/utils/export";
 import { getErrorMessage, logError } from "@/utils/errorHandler";
+import { formatCurrency } from "@/utils/formatCurrency";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   DropdownMenu,
@@ -286,6 +287,30 @@ export default function Inward() {
 
   const columns = useMemo(() => [
     { key: "srNo", header: "Sr No.", render: (_: InwardEntry, index: number) => <span>{(currentPage - 1) * pageSize + index + 1}</span> },
+    {
+      key: "invoiceAction",
+      header: "Action",
+      render: (e: InwardEntry) => (
+        <div className="flex justify-center">
+          {user?.role === 'superadmin' && !e.invoiceId ? (
+            <button
+              onClick={() => handleCreateInvoice([e.id])}
+              className="p-1.5 rounded-lg text-success hover:bg-success/10 transition-colors"
+              title="Create Invoice"
+            >
+              <FileText className="w-5 h-5" />
+            </button>
+          ) : e.invoiceId ? (
+            <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shadow-sm">
+              <FileText className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold uppercase tracking-tight">Invoiced</span>
+            </div>
+          ) : (
+            <div className="w-5 h-5" /> // Placeholder to maintain alignment
+          )}
+        </div>
+      )
+    },
     { key: "date", header: "Date", render: (e: InwardEntry) => format(new Date(e.date), 'dd MMM yyyy') },
     { key: "month", header: "Month", render: (e: InwardEntry) => e.month || '-' },
     { key: "lotNo", header: "Lot No.", render: (e: InwardEntry) => e.lotNo || '-' },
@@ -315,7 +340,7 @@ export default function Inward() {
           }
 
           return displayRate
-            ? `₹${displayRate.toFixed(2)}/${e.unit}`
+            ? `₹${formatCurrency(displayRate)}/${e.unit}`
             : <span className="text-[10px] text-amber-500 font-medium uppercase tracking-tight">Rate not defined</span>
         }
       },
@@ -328,7 +353,6 @@ export default function Inward() {
       ) : '-',
     },
     { key: "quantity", header: "Quantity", render: (e: InwardEntry) => `${e.quantity} ${e.unit}` },
-    { key: "remarks", header: "Remarks", render: (e: InwardEntry) => <span className="text-muted-foreground italic text-xs truncate max-w-[150px]" title={e.remarks || ''}>{e.remarks || '-'}</span> },
     ...(['admin', 'superadmin'].includes(user?.role || '') ? [
       { key: "invoiceNo", header: "Invoice No.", render: (e: InwardEntry) => e.invoice?.invoiceNo || "-" },
       {
@@ -348,7 +372,7 @@ export default function Inward() {
           const additionalCharges = Number(e.invoice.additionalCharges || 0);
 
           const entrySubtotal = entryBaseInvoiced + (additionalCharges / entryCount);
-          return `₹${entrySubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          return `₹${formatCurrency(entrySubtotal)}`;
         }
       },
       {
@@ -362,7 +386,7 @@ export default function Inward() {
           const totalGST = (Number(e.invoice.cgst) || 0) + (Number(e.invoice.sgst) || 0);
           const entryGST = totalGST / entryCount;
 
-          return `₹${entryGST.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          return `₹${formatCurrency(entryGST)}`;
         }
       },
       {
@@ -384,7 +408,7 @@ export default function Inward() {
 
           const entryGross = entryBaseInvoiced + (additionalCharges / entryCount) + (totalGST / entryCount);
 
-          return `₹${entryGross.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          return `₹${formatCurrency(entryGross)}`;
         }
       },
       {
@@ -416,7 +440,7 @@ export default function Inward() {
           const paymentRatio = invGrandTotal > 0 ? (invPaymentReceived / invGrandTotal) : 0;
           const entryPaymentReceived = entryGross * paymentRatio;
 
-          return `₹${entryPaymentReceived.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+          return `₹${formatCurrency(entryPaymentReceived)}`;
         }
       },
       { key: "paymentReceivedOn", header: "Payment Received On", render: (e: InwardEntry) => e.invoice?.paymentReceivedOn ? format(new Date(e.invoice.paymentReceivedOn), 'dd MMM yyyy') : "-" },
@@ -441,6 +465,7 @@ export default function Inward() {
         },
       },
     ] : []),
+    { key: "remarks", header: "Remarks", render: (e: InwardEntry) => <span className="text-muted-foreground italic text-xs truncate max-w-[150px]" title={e.remarks || ''}>{e.remarks || '-'}</span> },
     {
       key: "actions",
       header: "Actions",
@@ -465,15 +490,6 @@ export default function Inward() {
               >
                 <Edit className="w-4 h-4" />
               </button>
-              {user?.role === 'superadmin' && !e.invoiceId && (
-                <button
-                  onClick={() => handleCreateInvoice([e.id])}
-                  className="p-2 rounded-lg text-muted-foreground hover:text-success hover:bg-success/10 transition-colors"
-                  title="Create Invoice"
-                >
-                  <FileText className="w-4 h-4" />
-                </button>
-              )}
               <button
                 onClick={() => handleDelete(e.id)}
                 disabled={deleteMutation.isPending}
@@ -746,13 +762,13 @@ export default function Inward() {
             <div className="glass-card p-4">
               <p className="text-sm text-muted-foreground">Invoiced Amount</p>
               <p className="text-xl md:text-2xl font-bold text-foreground mt-1">
-                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(stats.totalInvoiced)}
+                ₹{formatCurrency(stats.totalInvoiced)}
               </p>
             </div>
             <div className="glass-card p-4">
               <p className="text-sm text-muted-foreground">Payment Received</p>
               <p className="text-xl md:text-2xl font-bold text-success mt-1">
-                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(stats.totalReceived)}
+                ₹{formatCurrency(stats.totalReceived)}
               </p>
             </div>
           </>
@@ -809,12 +825,12 @@ export default function Inward() {
               { key: "quantity", header: "Quantity", render: (m: InwardMaterial) => m.quantity ? `${m.quantity} ${m.unit || ''}` : '-' },
               { key: "vehicleCapacity", header: "Vehicle Capacity", render: (m: InwardMaterial) => m.vehicleCapacity || '-' },
               ...(user?.role === 'admin' || user?.role === 'superadmin' ? [
-                { key: "rate", header: "Rate", render: (m: InwardMaterial) => (m.rate !== null && m.rate !== undefined) ? `₹${Number(m.rate).toFixed(2)}` : '-' },
+                { key: "rate", header: "Rate", render: (m: InwardMaterial) => (m.rate !== null && m.rate !== undefined) ? `₹${formatCurrency(m.rate)}` : '-' },
                 { key: "invoiceNo", header: "Invoice No.", render: (m: InwardMaterial) => m.invoiceNo || '-' },
-                { key: "amount", header: "Amount", render: (m: InwardMaterial) => (m.amount !== null && m.amount !== undefined) ? `₹${Number(m.amount).toFixed(2)}` : '-' },
-                { key: "detCharges", header: "Det. Charges", render: (m: InwardMaterial) => (m.detCharges !== null && m.detCharges !== undefined) ? `₹${Number(m.detCharges).toFixed(2)}` : '-' },
-                { key: "gst", header: "GST", render: (m: InwardMaterial) => (m.gst !== null && m.gst !== undefined) ? `₹${Number(m.gst).toFixed(2)}` : '-' },
-                { key: "grossAmount", header: "Gross Amount", render: (m: InwardMaterial) => (m.grossAmount !== null && m.grossAmount !== undefined) ? `₹${Number(m.grossAmount).toFixed(2)}` : '-' },
+                { key: "amount", header: "Amount", render: (m: InwardMaterial) => (m.amount !== null && m.amount !== undefined) ? `₹${formatCurrency(m.amount)}` : '-' },
+                { key: "detCharges", header: "Det. Charges", render: (m: InwardMaterial) => (m.detCharges !== null && m.detCharges !== undefined) ? `₹${formatCurrency(m.detCharges)}` : '-' },
+                { key: "gst", header: "GST", render: (m: InwardMaterial) => (m.gst !== null && m.gst !== undefined) ? `₹${formatCurrency(m.gst)}` : '-' },
+                { key: "grossAmount", header: "Gross Amount", render: (m: InwardMaterial) => (m.grossAmount !== null && m.grossAmount !== undefined) ? `₹${formatCurrency(m.grossAmount)}` : '-' },
                 { key: "paidOn", header: "Paid On", render: (m: InwardMaterial) => m.paidOn ? format(new Date(m.paidOn), 'dd MMM yyyy') : '-' },
               ] : []),
               {
@@ -1329,7 +1345,7 @@ function InwardEntryDetails({ entry }: { entry: InwardEntry }) {
               <p className="text-sm text-muted-foreground">Rate</p>
               <p className="font-medium text-foreground">
                 {entry.rate
-                  ? `₹${Number(entry.rate).toFixed(2)}/${entry.unit}`
+                  ? `₹${formatCurrency(entry.rate)}/${entry.unit}`
                   : <span className="text-amber-500">Rate not defined</span>
                 }
               </p>
@@ -1399,8 +1415,8 @@ function InwardEntryDetails({ entry }: { entry: InwardEntry }) {
                     <td className="px-4 py-3 text-right">{mat.quantity} {mat.unit}</td>
                     {['admin', 'superadmin'].includes(user?.role || '') && (
                       <>
-                        <td className="px-4 py-3 text-right">₹{Number(mat.rate || 0).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right font-medium">₹{Number(mat.grossAmount || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right">₹{formatCurrency(mat.rate || 0)}</td>
+                        <td className="px-4 py-3 text-right font-medium">₹{formatCurrency(mat.grossAmount || 0)}</td>
                         <td className="px-4 py-3">{mat.invoiceNo || '-'}</td>
                         <td className="px-4 py-3">
                           {mat.paidOn ? format(new Date(mat.paidOn), 'dd MMM yyyy') : <span className="text-destructive font-medium">Pending</span>}
@@ -1442,11 +1458,11 @@ function InwardEntryDetails({ entry }: { entry: InwardEntry }) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Gross Amount</p>
-                <p className="font-medium text-foreground text-lg">₹{Number(entry.invoice.grandTotal).toLocaleString()}</p>
+                <p className="font-medium text-foreground text-lg">₹{formatCurrency(entry.invoice.grandTotal)}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Payment Received</p>
-                <p className="font-medium text-success">₹{Number(entry.invoice.paymentReceived).toLocaleString()}</p>
+                <p className="font-medium text-success">₹{formatCurrency(entry.invoice.paymentReceived)}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Status</p>

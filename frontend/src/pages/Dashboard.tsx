@@ -27,6 +27,7 @@ import {
 } from "recharts";
 import dashboardService from "@/services/dashboard.service";
 import { format } from "date-fns";
+import { formatCurrency } from "@/utils/formatCurrency";
 
 const quickNavItems = [
   { title: "Inward Entry", description: "Record waste collection", icon: ArrowDownToLine, href: "/inward" },
@@ -78,12 +79,7 @@ export default function Dashboard() {
 
   // Format revenue for display
   const formatRevenue = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(amount);
+    return `₹${formatCurrency(amount)}`;
   };
 
   // Format quantity for display
@@ -351,7 +347,7 @@ export default function Dashboard() {
                       borderRadius: "8px",
                       color: "hsl(var(--foreground))",
                     }}
-                    formatter={(value: number) => [`₹${value.toLocaleString()}`, "Revenue"]}
+                    formatter={(value: number) => [`₹${formatCurrency(value)}`, "Revenue"]}
                   />
                   <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 </BarChart>

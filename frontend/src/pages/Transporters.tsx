@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { getErrorMessage, logError } from "@/utils/errorHandler";
+import { formatCurrency } from "@/utils/formatCurrency";
 
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -243,13 +244,13 @@ export default function Transporters() {
       {
         key: "totalInvoiced",
         header: "Total Invoiced",
-        render: (transporter: Transporter) => `₹${(transporter.totalInvoiced || 0).toLocaleString()}`,
+        render: (transporter: Transporter) => `₹${formatCurrency(transporter.totalInvoiced || 0)}`,
       },
       {
         key: "totalPaid",
         header: "Paid Amount",
         render: (transporter: Transporter) => (
-          <span className="text-success">₹{(transporter.totalPaid || 0).toLocaleString()}</span>
+          <span className="text-success">₹{formatCurrency(transporter.totalPaid || 0)}</span>
         ),
       },
       {
@@ -259,7 +260,7 @@ export default function Transporters() {
           const pending = transporter.totalPending || 0;
           return (
             <span className={pending > 0 ? "text-destructive" : "text-success"}>
-              ₹{pending.toLocaleString()}
+              ₹{formatCurrency(pending)}
             </span>
           );
         },
@@ -365,19 +366,19 @@ export default function Transporters() {
             <div className="glass-card p-4">
               <p className="text-sm text-muted-foreground">Total Invoiced</p>
               <p className="text-2xl font-bold text-foreground mt-1">
-                ₹{totalInvoiced.toLocaleString()}
+                ₹{formatCurrency(totalInvoiced)}
               </p>
             </div>
             <div className="glass-card p-4">
               <p className="text-sm text-muted-foreground">Total Paid</p>
               <p className="text-2xl font-bold text-success mt-1">
-                ₹{totalPaid.toLocaleString()}
+                ₹{formatCurrency(totalPaid)}
               </p>
             </div>
             <div className="glass-card p-4">
               <p className="text-sm text-muted-foreground">Total Pending</p>
               <p className="text-2xl font-bold text-destructive mt-1">
-                ₹{totalPending.toLocaleString()}
+                ₹{formatCurrency(totalPending)}
               </p>
             </div>
           </>
@@ -574,19 +575,19 @@ function TransporterDetails({ id }: { id: string }) {
           <div className="glass-card p-4">
             <p className="text-sm text-muted-foreground">Total Invoiced</p>
             <p className="text-xl font-bold text-foreground mt-1">
-              ₹{(transporter.totalInvoiced || 0).toLocaleString()}
+              ₹{formatCurrency(transporter.totalInvoiced || 0)}
             </p>
           </div>
           <div className="glass-card p-4">
             <p className="text-sm text-muted-foreground">Total Paid</p>
             <p className="text-xl font-bold text-success mt-1">
-              ₹{(transporter.totalPaid || 0).toLocaleString()}
+              ₹{formatCurrency(transporter.totalPaid || 0)}
             </p>
           </div>
           <div className="glass-card p-4">
             <p className="text-sm text-muted-foreground">Pending Amount</p>
             <p className="text-xl font-bold text-destructive mt-1">
-              ₹{(transporter.totalPending || 0).toLocaleString()}
+              ₹{formatCurrency(transporter.totalPending || 0)}
             </p>
           </div>
         </div>
@@ -604,8 +605,8 @@ function TransporterDetails({ id }: { id: string }) {
               { key: "quantity", header: "Quantity", render: (m: any) => m.quantity ? `${m.quantity} ${m.unit || ''}` : '-' },
               ...(user?.role === 'admin' || user?.role === 'superadmin' ? [
                 { key: "invoiceNo", header: "Invoice No.", render: (m: any) => m.invoiceNo || '-' },
-                { key: "rate", header: "Rate", render: (m: any) => m.rate ? `₹${Number(m.rate).toFixed(2)}` : '-' },
-                { key: "grossAmount", header: "Gross Amount", render: (m: any) => m.grossAmount ? `₹${Number(m.grossAmount).toFixed(2)}` : '-' },
+                { key: "rate", header: "Rate", render: (m: any) => m.rate ? `₹${formatCurrency(m.rate)}` : '-' },
+                { key: "grossAmount", header: "Gross Amount", render: (m: any) => m.grossAmount ? `₹${formatCurrency(m.grossAmount)}` : '-' },
                 { key: "paidOn", header: "Paid On", render: (m: any) => m.paidOn ? format(new Date(m.paidOn), 'dd MMM yyyy') : <span className="text-destructive font-medium">Pending</span> },
               ] : []),
             ]}
@@ -626,7 +627,7 @@ function TransporterDetails({ id }: { id: string }) {
               { key: "wasteName", header: "Waste Name", render: (m: any) => m.wasteName || '-' },
               ...(user?.role === 'admin' || user?.role === 'superadmin' ? [
                 { key: "invoiceNo", header: "Invoice No.", render: (m: any) => m.invoiceNo || '-' },
-                { key: "grossAmount", header: "Gross Amount", render: (m: any) => m.grossAmount ? `₹${Number(m.grossAmount).toFixed(2)}` : '-' },
+                { key: "grossAmount", header: "Gross Amount", render: (m: any) => m.grossAmount ? `₹${formatCurrency(m.grossAmount)}` : '-' },
                 { key: "paidOn", header: "Paid On", render: (m: any) => m.paidOn ? format(new Date(m.paidOn), 'dd MMM yyyy') : <span className="text-destructive font-medium">Pending</span> },
               ] : []),
             ]}
@@ -719,9 +720,9 @@ function TransporterDetails({ id }: { id: string }) {
                           {inv.date ? format(new Date(inv.date), 'dd MMM yyyy') : '-'}
                         </td>
                         <td className="px-4 py-3 font-medium text-foreground">{inv.invoiceNo}</td>
-                        <td className="px-4 py-3 text-right">₹{Number(inv.amount || 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-right">₹{formatCurrency(inv.amount || 0)}</td>
                         <td className="px-4 py-3 text-right text-success">
-                          ₹{Number(inv.paid || 0).toLocaleString()}
+                          ₹{formatCurrency(inv.paid || 0)}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <StatusBadge status={inv.status as any} />
